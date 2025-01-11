@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-plugin-template",
+	"name": "obsidian-pathlinker",
 	"version": "0.0.1",
-	"description": "A description for the plugin.",
+	"description": "Use external paths on any device",
 	"main": "main.js",
 	"scripts": {
 		"setup": "git submodule update --init --recursive && npm i && npx ts-node --esm external/obsidian-plugin-scripts/setup.mts",
@@ -13,7 +13,7 @@
 		"obsidian-plugin",
 		"typescript"
 	],
-	"author": "Zachatoo",
+	"author": "Kay606",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",

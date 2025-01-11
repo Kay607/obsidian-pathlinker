@@ -1,11 +1,9 @@
 {
-	"id": "obsidian-plugin-template",
-	"name": "Obsidian plugin template",
+	"id": "obsidian-pathlinker",
+	"name": "Use external paths on any device",
 	"version": "0.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "A description for the plugin.",
-	"author": "Zachatoo",
-	"authorUrl": "https://zachyoung.dev",
-	"fundingUrl": "https://github.com/sponsors/Zachatoo",
+	"description": "Use external paths on any device",
+	"author": "Kay606",
 	"isDesktopOnly": false
 }

@@ -1,15 +1,17 @@
 import { Plugin } from "obsidian";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-interface MyPluginSettings {}
+interface PathLinkerSettings {}
 
-const DEFAULT_SETTINGS: MyPluginSettings = {};
+const DEFAULT_SETTINGS: PathLinkerSettings = {};
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class PathLinkerPlugin extends Plugin {
+	settings: PathLinkerSettings;
 
 	async onload() {
 		await this.loadSettings();
+
+		console.log("PathLinker loaded");
 	}
 
 	onunload() {}
