@@ -137,12 +137,19 @@ export default class PathLinkerPlugin extends Plugin {
 
 		this.originalGetResourcePath = this.app.vault.getResourcePath; // Save the original function
 		// Override the getResourcePath method
-		this.app.vault.getResourcePath = (normalizedPath: TFile): string => {
+		this.app.vault.getResourcePath = (file: TFile): string => {
 			// If the path contains _externalPrefix, it's an external file
 			// Remove this prefix and anything before it (the vault root path)
-			if (normalizedPath.path.startsWith(_externalPrefix)) {
+			if (file.path.startsWith(_externalPrefix)) {
 
-				const stripped = normalizedPath.path.replace(_externalPrefix, "");
+				let stripped = file.path.replace(_externalPrefix, "");
+
+				const isTextFile = file.extension === "md" || file.extension === "canvas" || file.extension === "json" || file.extension === "txt";
+				if (!isTextFile)
+				{
+					// Remove "./" from the start of the path
+					stripped = this.useVaultAsWorkingDirectory(stripped.replace("./", ""));
+				}
 
 				const prefix = this.isLocalFile(stripped) ? Platform.resourcePathPrefix : "";
 
@@ -150,7 +157,7 @@ export default class PathLinkerPlugin extends Plugin {
 			}
 
 			// For other files, allow the original method to handle them
-			return this.originalGetResourcePath.call(this.app.vault, normalizedPath);
+			return this.originalGetResourcePath.call(this.app.vault, file);
 		};
 
 
