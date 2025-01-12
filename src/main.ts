@@ -25,7 +25,7 @@ export default class PathLinkerPlugin extends Plugin {
 
 	// Creates a TFile object for a file that doesn't exist
 	// This is used for external links so that obisidan will try to read the file
-	createFakeFile(linkpath: string): TFile {
+	createFakeFile(linkpath: string): TFile | null {
 
 		let fileName;
 		if (linkpath.startsWith(externalPrefix))
@@ -44,9 +44,16 @@ export default class PathLinkerPlugin extends Plugin {
 
 			const [newName, newPath, isValid] = this.processLink(groupName, fileName);
 
+			if (!isValid)
+				return null;
+
 			fileName = newPath;
 
 		}
+
+
+		if (!fs.existsSync(fileName))
+			return null;
 
 		//const fileName = linkpath.replace("external://", "");
 		const basename = path.basename(fileName, path.extname(fileName));
