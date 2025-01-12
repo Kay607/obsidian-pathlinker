@@ -23,14 +23,24 @@ export default class PathLinkerPlugin extends Plugin {
 	oldCachedRead: (file: TFile) => Promise<string>;
 	originalGetResourcePath: (file: TFile) => string;
 
+	isLocalFile(filePath: string) : boolean
+	{
+		return !(filePath.startsWith("http://") || filePath.startsWith("https://"));
+	}
+
 	// If the path is relative, use the vault as the working directory
 	// Otherwise, use the path without modification
 	useVaultAsWorkingDirectory(filePath: string) : string
 	{ 
-		if (path.isAbsolute(filePath))
+		console.log(filePath);
+		if (path.isAbsolute(filePath) || !this.isLocalFile(filePath))
+		{
 			return filePath;
+		}
 		else
+		{
 			return path.join((this.app.vault.adapter as any).basePath, filePath);
+		}
 	}
 
 	// Creates a TFile object for a file that doesn't exist
@@ -62,7 +72,7 @@ export default class PathLinkerPlugin extends Plugin {
 		}
 
 
-		if (!fs.existsSync(this.useVaultAsWorkingDirectory(fileName)))
+		if (this.isLocalFile(fileName) && !fs.existsSync(this.useVaultAsWorkingDirectory(fileName)))
 			return null;
 
 		//const fileName = linkpath.replace("external://", "");
@@ -133,7 +143,12 @@ export default class PathLinkerPlugin extends Plugin {
 			// Remove this prefix and anything before it (the vault root path)
 			if (normalizedPath.path.startsWith(_externalPrefix)) {
 
-				return Platform.resourcePathPrefix + normalizedPath.path.replace(_externalPrefix, "");
+				const stripped = normalizedPath.path.replace(_externalPrefix, "");
+
+				const prefix = this.isLocalFile(stripped) ? Platform.resourcePathPrefix : "";
+
+				console.log(prefix + stripped);
+				return prefix + stripped;
 			}
 
 			// For other files, allow the original method to handle them
