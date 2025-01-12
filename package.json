@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-pathlinker",
-	"version": "0.0.3",
-	"description": "Use external paths on any device",
+	"version": "0.0.4",
+	"description": "Embed external files",
 	"main": "main.js",
 	"scripts": {
 		"setup": "git submodule update --init --recursive && npm i && npx ts-node --esm external/obsidian-plugin-scripts/setup.mts",

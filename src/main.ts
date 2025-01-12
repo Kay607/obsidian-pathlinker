@@ -2,7 +2,9 @@ import { DataAdapter, FileStats, Platform, Plugin, TFile, TFolder } from "obsidi
 
 import { PathLinkerSettings, PathLinkerPluginSettingTab, DEFAULT_SETTINGS } from "./settings";
 
-import {machineId, machineIdSync} from 'node-machine-id';
+import { platform }  from 'os';
+
+
 import * as path from "path";
 import * as fs from "fs";
 
@@ -22,6 +24,30 @@ export default class PathLinkerPlugin extends Plugin {
 	originalGetFirstLinkpathDest: (linkpath: string, sourcePath: string) => TFile | null;
 	oldCachedRead: (file: TFile) => Promise<string>;
 	originalGetResourcePath: (file: TFile) => string;
+
+
+	getUUID() : string
+	{
+		if (!(this.app as any).isMobile) {
+			// Desktop: Use machine ID
+			try {
+				const { machineIdSync } = require('node-machine-id');
+				return machineIdSync(); // Return machine ID if available
+			} catch (error) {
+				console.error('Failed to load node-machine-id', error);
+				return "ERROR";
+			}
+		}
+
+		// Mobile: Try to get UUID from local storage, or generate a new one if it doesn't exist
+		let deviceId = localStorage.getItem('device-id');
+		if (!deviceId) {
+			// Generate a new UUID
+			deviceId = [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+			localStorage.setItem('device-id', deviceId);
+		}
+		return deviceId;
+	}
 
 	isLocalFile(filePath: string) : boolean
 	{
@@ -116,7 +142,7 @@ export default class PathLinkerPlugin extends Plugin {
 
 		// Get a UUID for the device
 		// This is used to identify the device to get the path from the group
-		this.uuid = machineIdSync();
+		this.uuid = this.getUUID();
 		
 		// Text files such as .md and .canvas use a different system to reading files than binary (pdf, mp3)
 		// Binary files work automatically without editing the reading methods
