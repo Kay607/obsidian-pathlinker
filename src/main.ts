@@ -55,7 +55,7 @@ export default class PathLinkerPlugin extends Plugin {
 	}
 
 	isAbsolutePath(filePath: string) {
-		if (!(this.app as any).isMobile) {
+		if ((this.app as any).isMobile) {
 			return filePath.startsWith('/');
 		} else {
 			return path.isAbsolute(filePath);
