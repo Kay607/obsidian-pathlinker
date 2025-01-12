@@ -24,5 +24,8 @@
 		"obsidian": "latest",
 		"tslib": "2.4.0",
 		"typescript": "^4.9.0"
+	},
+	"dependencies": {
+		"node-machine-id": "^1.1.12"
 	}
 }

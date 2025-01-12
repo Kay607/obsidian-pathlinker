@@ -1,6 +1,6 @@
 {
 	"id": "obsidian-pathlinker",
-	"name": "Use external paths on any device",
+	"name": "External Path Linker",
 	"version": "0.0.1",
 	"minAppVersion": "0.15.0",
 	"description": "Use external paths on any device",

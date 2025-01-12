@@ -1,20 +1,153 @@
-import { Plugin } from "obsidian";
+import { DataAdapter, FileStats, Platform, Plugin, TFile, TFolder } from "obsidian";
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-interface PathLinkerSettings {}
+import { PathLinkerSettings, PathLinkerPluginSettingTab, DEFAULT_SETTINGS } from "./settings";
 
-const DEFAULT_SETTINGS: PathLinkerSettings = {};
+import {machineId, machineIdSync} from 'node-machine-id';
+import * as path from "path";
+import * as fs from "fs";
+
+// This 
+const externalPrefix = "external:";
+const externalGroupPrefix = "group:";
+
+// This should not be modified
+// This is never used by users and is only ever used internally in the plugin
+const _externalPrefix = "PathLinker:";
 
 export default class PathLinkerPlugin extends Plugin {
 	settings: PathLinkerSettings;
 
+	uuid: string;
+
+	originalGetFirstLinkpathDest: (linkpath: string, sourcePath: string) => TFile | null;
+	oldCachedRead: (file: TFile) => Promise<string>;
+	originalGetResourcePath: (file: TFile) => string;
+
+	// Creates a TFile object for a file that doesn't exist
+	// This is used for external links so that obisidan will try to read the file
+	createFakeFile(linkpath: string): TFile {
+
+		let fileName;
+		if (linkpath.startsWith(externalPrefix))
+		{
+			fileName = linkpath.replace(externalPrefix, "");
+		}
+		else
+		{
+			const fileData = linkpath.replace(externalGroupPrefix, "");
+
+			// The group name will be before the first / and the remainder of the path will be after it
+			const splitIndex = fileData.indexOf("/");
+
+			const groupName = fileData.slice(0, splitIndex);
+			fileName = fileData.slice(splitIndex + 1);
+
+			const [newName, newPath, isValid] = this.processLink(groupName, fileName);
+
+			fileName = newPath;
+
+		}
+
+		//const fileName = linkpath.replace("external://", "");
+		const basename = path.basename(fileName, path.extname(fileName));
+		const extension = path.extname(fileName).slice(1);
+
+
+		// None of the following is used so all values are set to 0
+        const fileStats: FileStats = {
+            ctime: 0, 
+            mtime: 0,
+            size: 0,
+        };
+
+
+        const file: TFile = {
+            path: _externalPrefix + fileName,	// Path to the file (test.md)
+            name: fileName,       				// File name with extension (test.md)
+            extension: extension,     			// File extension (md)
+            basename: basename,      			// Base name of the file (test)
+            parent: null, 						// Root of the vault (not relevant here)
+            stat: fileStats,     				// File stats (unused but required)
+            vault: this.app.vault, 				// Reference to the vault object
+        };
+
+
+		// This prevent errors from the function being called
+		// The file will not be cached
+		(file as any).cache = function() {
+			return {};
+		};
+
+        return file;
+    }
+
+
 	async onload() {
 		await this.loadSettings();
+		await this.saveSettings();
 
-		console.log("PathLinker loaded");
+		this.addSettingTab(new PathLinkerPluginSettingTab(this.app, this));
+
+		// Get a UUID for the device
+		// This is used to identify the device to get the path from the group
+		this.uuid = machineIdSync();
+		
+		// Text files such as .md and .canvas use a different system to reading files than binary (pdf, mp3)
+		// Binary files work automatically without editing the reading methods
+		// The cachedRead method is overridden for text files as these don't work otherwise
+		this.oldCachedRead = this.app.vault.cachedRead;
+		this.app.vault.cachedRead = async (file: TFile): Promise<string> => {
+
+			// If the path starts with _externalPrefix, it's an external file
+			// This prefix is prepended by the plugin
+			if (file.path.startsWith(_externalPrefix)) {
+				// Return a custom file object for external files
+				return fs.readFileSync(file.path.replace(_externalPrefix, ""), "utf-8");
+			}
+			return this.oldCachedRead.call(this.app.vault, file);
+		};
+		
+
+
+		this.originalGetResourcePath = this.app.vault.getResourcePath; // Save the original function
+		// Override the getResourcePath method
+		this.app.vault.getResourcePath = (normalizedPath: TFile): string => {
+			// If the path contains _externalPrefix, it's an external file
+			// Remove this prefix and anything before it (the vault root path)
+			if (normalizedPath.path.startsWith(_externalPrefix)) {
+
+				return Platform.resourcePathPrefix + normalizedPath.path.replace(_externalPrefix, "");
+			}
+
+			// For other files, allow the original method to handle them
+			return this.originalGetResourcePath.call(this.app.vault, normalizedPath);
+		};
+
+
+		// Intercept getFirstLinkpathDest to handle external links
+        this.originalGetFirstLinkpathDest = this.app.metadataCache.getFirstLinkpathDest;
+        this.app.metadataCache.getFirstLinkpathDest = (linkpath: string, sourcePath: string): TFile | null => {
+            if (linkpath.startsWith(externalPrefix) || linkpath.startsWith(externalGroupPrefix)) {
+                // Return a custom file object for external links
+				// This creates a TFile object to a file that doesn't exist so that obisidan will try to read it
+				// This read will later be intercepted so that the correct file is read
+                return this.createFakeFile(linkpath);
+            }
+
+            // Call the original method for internal links
+            return this.originalGetFirstLinkpathDest.call(this.app.metadataCache, linkpath, sourcePath);
+        };
+
+    }
+
+
+	onunload() {
+		
+		this.app.vault.cachedRead = this.oldCachedRead;
+		this.app.vault.getResourcePath = this.originalGetResourcePath;
+		this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
+
 	}
-
-	onunload() {}
 
 	async loadSettings() {
 		this.settings = Object.assign(
@@ -26,5 +159,26 @@ export default class PathLinkerPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+
+	processLink(group: string, relativePath: string) : [string, string, boolean] {
+		const devices = this.settings.groups.find((g) => g.name === group);
+		if (!devices) {
+			return ["(Invalid group)", "#", false];
+		}
+
+		const basePath = devices.devices.find((d) => d.id === this.uuid)?.basePath;
+		
+		if (!basePath) {
+			return ["(Invalid device)", "#", false];
+		}
+	
+		if (basePath) {
+			const resolvedPath = `${basePath}/${relativePath}`;
+			return ["", resolvedPath, true];
+		} else {
+			return ["(Invalid group)", "#", false];
+		}
 	}
 }
