@@ -54,6 +54,14 @@ export default class PathLinkerPlugin extends Plugin {
 		return !(filePath.startsWith("http://") || filePath.startsWith("https://"));
 	}
 
+	joinPaths(paths: string[]) {
+		if ((this.app as any).isMobile) {
+			return paths.join('/').replace(/\/+/g, '/'); // Remove any extra slashes
+		} else {
+			return path.join(...paths);
+		}
+	}
+
 	isAbsolutePath(filePath: string) {
 		if ((this.app as any).isMobile) {
 			return filePath.startsWith('/');
@@ -72,7 +80,29 @@ export default class PathLinkerPlugin extends Plugin {
 		}
 		else
 		{
-			return path.join((this.app.vault.adapter as any).basePath, filePath);
+			return this.joinPaths([(this.app.vault.adapter as any).basePath, filePath]);
+		}
+	}
+
+	basename(filePath: string) : string {
+		if ((this.app as any).isMobile) {
+			const segments = filePath.split('/');
+			return segments[segments.length - 1];
+		} else {
+			return path.basename(filePath, path.extname(filePath));
+		}
+	}
+
+	extname(filePath: string) : string
+	{
+		if ((this.app as any).isMobile)
+		{
+			const lastDotIndex = filePath.lastIndexOf('.');
+        	return lastDotIndex !== -1 ? filePath.slice(lastDotIndex) : '';
+		}
+		else
+		{
+			return path.extname(filePath);
 		}
 	}
 
@@ -109,8 +139,8 @@ export default class PathLinkerPlugin extends Plugin {
 			return null;
 
 		//const fileName = linkpath.replace("external://", "");
-		const basename = path.basename(fileName, path.extname(fileName));
-		const extension = path.extname(fileName).slice(1);
+		const basename = this.basename(fileName);
+		const extension = this.extname(fileName).slice(1);
 
 
 		// None of the following is used so all values are set to 0
