@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-pathlinker",
 	"name": "External Path Linker",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"minAppVersion": "0.15.0",
 	"description": "Embed external files",
 	"author": "Kay606",

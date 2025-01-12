@@ -54,11 +54,19 @@ export default class PathLinkerPlugin extends Plugin {
 		return !(filePath.startsWith("http://") || filePath.startsWith("https://"));
 	}
 
+	isAbsolutePath(filePath: string) {
+		if (!(this.app as any).isMobile) {
+			return filePath.startsWith('/');
+		} else {
+			return path.isAbsolute(filePath);
+		}
+	}
+
 	// If the path is relative, use the vault as the working directory
 	// Otherwise, use the path without modification
 	useVaultAsWorkingDirectory(filePath: string) : string
 	{ 
-		if (path.isAbsolute(filePath) || !this.isLocalFile(filePath))
+		if (this.isAbsolutePath(filePath) || !this.isLocalFile(filePath))
 		{
 			return filePath;
 		}
