@@ -32,7 +32,6 @@ export default class PathLinkerPlugin extends Plugin {
 	// Otherwise, use the path without modification
 	useVaultAsWorkingDirectory(filePath: string) : string
 	{ 
-		console.log(filePath);
 		if (path.isAbsolute(filePath) || !this.isLocalFile(filePath))
 		{
 			return filePath;
@@ -147,7 +146,6 @@ export default class PathLinkerPlugin extends Plugin {
 
 				const prefix = this.isLocalFile(stripped) ? Platform.resourcePathPrefix : "";
 
-				console.log(prefix + stripped);
 				return prefix + stripped;
 			}
 
