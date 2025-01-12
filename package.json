@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-pathlinker",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"description": "Use external paths on any device",
 	"main": "main.js",
 	"scripts": {
