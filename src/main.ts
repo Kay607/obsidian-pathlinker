@@ -23,6 +23,16 @@ export default class PathLinkerPlugin extends Plugin {
 	oldCachedRead: (file: TFile) => Promise<string>;
 	originalGetResourcePath: (file: TFile) => string;
 
+	// If the path is relative, use the vault as the working directory
+	// Otherwise, use the path without modification
+	useVaultAsWorkingDirectory(filePath: string) : string
+	{ 
+		if (path.isAbsolute(filePath))
+			return filePath;
+		else
+			return path.join((this.app.vault.adapter as any).basePath, filePath);
+	}
+
 	// Creates a TFile object for a file that doesn't exist
 	// This is used for external links so that obisidan will try to read the file
 	createFakeFile(linkpath: string): TFile | null {
@@ -52,7 +62,7 @@ export default class PathLinkerPlugin extends Plugin {
 		}
 
 
-		if (!fs.existsSync(fileName))
+		if (!fs.existsSync(this.useVaultAsWorkingDirectory(fileName)))
 			return null;
 
 		//const fileName = linkpath.replace("external://", "");
@@ -109,7 +119,7 @@ export default class PathLinkerPlugin extends Plugin {
 			// This prefix is prepended by the plugin
 			if (file.path.startsWith(_externalPrefix)) {
 				// Return a custom file object for external files
-				return fs.readFileSync(file.path.replace(_externalPrefix, ""), "utf-8");
+				return fs.readFileSync(this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, "")), "utf-8");
 			}
 			return this.oldCachedRead.call(this.app.vault, file);
 		};
