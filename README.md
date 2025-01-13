@@ -30,7 +30,7 @@ The groups system will check which device you are using and choose the correct b
 
 This allows you to link to external files without worrying about which device you are on as the links will always work
 
-![image](https://github.com/user-attachments/assets/b79c05c2-fb73-4d4b-ae82-d0e65498fc40)
+![image](https://github.com/user-attachments/assets/55ed7be4-99bb-4636-8a99-d7523d924346)
 
 The group name, `Test` in the example above, will be used in all links which use the group (these will not be updated if you change the group name)
 
