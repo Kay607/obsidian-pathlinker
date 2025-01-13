@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-pathlinker",
-	"version": "0.0.7",
+	"version": "0.0.8",
 	"description": "Embed external files",
 	"main": "main.js",
 	"scripts": {
