@@ -5,5 +5,5 @@
 	"minAppVersion": "0.15.0",
 	"description": "Embed external files",
 	"author": "Kay606",
-	"isDesktopOnly": false
+	"isDesktopOnly": true
 }
