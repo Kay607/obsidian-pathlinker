@@ -26,6 +26,9 @@
 		"typescript": "^4.9.0"
 	},
 	"dependencies": {
-		"node-machine-id": "^1.1.12"
+		"@capacitor/filesystem": "^6.0.2",
+		"@kaciras/deasync": "^1.1.0",
+		"node-machine-id": "^1.1.12",
+		"react-native-fs": "^2.20.0"
 	}
 }

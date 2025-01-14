@@ -1,20 +1,19 @@
-import { DataAdapter, FileStats, Platform, Plugin, TFile, TFolder } from "obsidian";
+import { App, FileStats, Platform, Plugin, TFile } from "obsidian";
 
 import { PathLinkerSettings, PathLinkerPluginSettingTab, DEFAULT_SETTINGS } from "./settings";
-
-import { platform }  from 'os';
-
 
 import * as path from "path";
 import * as fs from "fs";
 
-// This 
+import { Filesystem } from "@capacitor/filesystem";
+
 const externalPrefix = "external:";
 const externalGroupPrefix = "group:";
 
 // This should not be modified
 // This is never used by users and is only ever used internally in the plugin
 const _externalPrefix = "PathLinker:";
+
 
 export default class PathLinkerPlugin extends Plugin {
 	settings: PathLinkerSettings;
@@ -24,6 +23,9 @@ export default class PathLinkerPlugin extends Plugin {
 	originalGetFirstLinkpathDest: (linkpath: string, sourcePath: string) => TFile | null;
 	oldCachedRead: (file: TFile) => Promise<string>;
 	originalGetResourcePath: (file: TFile) => string;
+
+	originalGetEmbedCreater: (embedData: any) => any;
+
 
 
 	getUUID() : string
@@ -106,6 +108,7 @@ export default class PathLinkerPlugin extends Plugin {
 		}
 	}
 
+
 	// Creates a TFile object for a file that doesn't exist
 	// This is used for external links so that obisidan will try to read the file
 	createFakeFile(linkpath: string): TFile | null {
@@ -134,11 +137,13 @@ export default class PathLinkerPlugin extends Plugin {
 
 		}
 
+		// Only do the check on desktop as there is no synchronous file system on mobile
+		if (!(this.app as any).isMobile)
+		{
+			if (this.isLocalFile(fileName) && fs.existsSync(fileName))
+				return null;
+		}
 
-		if (this.isLocalFile(fileName) && !fs.existsSync(this.useVaultAsWorkingDirectory(fileName)))
-			return null;
-
-		//const fileName = linkpath.replace("external://", "");
 		const basename = this.basename(fileName);
 		const extension = this.extname(fileName).slice(1);
 
@@ -173,6 +178,8 @@ export default class PathLinkerPlugin extends Plugin {
 
 
 	async onload() {
+		console.log("PathLinker loaded");
+
 		await this.loadSettings();
 		await this.saveSettings();
 
@@ -192,7 +199,28 @@ export default class PathLinkerPlugin extends Plugin {
 			// This prefix is prepended by the plugin
 			if (file.path.startsWith(_externalPrefix)) {
 				// Return a custom file object for external files
-				return fs.readFileSync(this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, "")), "utf-8");
+
+				const filePath = this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, ""));
+
+				if ((this.app as any).isMobile)
+				{
+					
+					// Read the file with Capacitor
+					let result = await Filesystem.readFile({ path: filePath });
+
+					if (result.data instanceof Blob) {
+						const base64Data = await result.data.text();
+			
+						return base64Data;
+					} else {
+						const decodedContent = atob(result.data);
+						return decodedContent;
+					}
+				}
+				else
+				{	
+					return fs.readFileSync(filePath, 'utf8');
+				}
 			}
 			return this.oldCachedRead.call(this.app.vault, file);
 		};
@@ -215,7 +243,8 @@ export default class PathLinkerPlugin extends Plugin {
 					stripped = this.useVaultAsWorkingDirectory(stripped.replace("./", ""));
 				}
 
-				const prefix = this.isLocalFile(stripped) ? Platform.resourcePathPrefix : "";
+				const isLocal = this.isLocalFile(stripped);
+				const prefix = isLocal ? Platform.resourcePathPrefix : "";
 
 				return prefix + stripped;
 			}
@@ -227,7 +256,7 @@ export default class PathLinkerPlugin extends Plugin {
 
 		// Intercept getFirstLinkpathDest to handle external links
         this.originalGetFirstLinkpathDest = this.app.metadataCache.getFirstLinkpathDest;
-        this.app.metadataCache.getFirstLinkpathDest = (linkpath: string, sourcePath: string): TFile | null => {
+        (this.app.metadataCache.getFirstLinkpathDest as any) = (linkpath: string, sourcePath: string): TFile | null => {
             if (linkpath.startsWith(externalPrefix) || linkpath.startsWith(externalGroupPrefix)) {
                 // Return a custom file object for external links
 				// This creates a TFile object to a file that doesn't exist so that obisidan will try to read it
@@ -239,6 +268,88 @@ export default class PathLinkerPlugin extends Plugin {
             return this.originalGetFirstLinkpathDest.call(this.app.metadataCache, linkpath, sourcePath);
         };
 
+
+		let that = this;
+
+		this.originalGetEmbedCreater = (this.app as any).embedRegistry.getEmbedCreator;
+
+		if((this.app as any).isMobile)
+		(this.app as any).embedRegistry.getEmbedCreator = (embedData: any) => {
+			let embedCreator = this.originalGetEmbedCreater.call((this.app as any).embedRegistry, embedData);
+
+			if(!embedCreator)
+				return embedCreator;
+
+			return (app: App, containerEl: HTMLElement, depth: number, linktext: string, showInline: boolean, sourcePath: string) => {
+
+				const embed = embedCreator(app, containerEl, depth, linktext, showInline, sourcePath);
+
+				// Only PDFs need 
+				if (embedData.extension != "pdf") {
+					return embed;
+				}
+
+
+				Object.defineProperty(embed.viewer, "child", {
+					get() {
+						return this._child; // Return the stored value
+					},
+					set(childValue) {
+						this._child = childValue; // Store the new value
+						if (childValue) {
+
+							
+							Object.defineProperty(childValue, "pdfViewer", {
+								get() {
+									return this._pdfViewer; // Return the stored value
+								},
+								set(pdfViewerValue) {
+									this._pdfViewer = pdfViewerValue; // Store the new value
+									if (pdfViewerValue) {
+	
+										const originalOpen = pdfViewerValue.open;
+										pdfViewerValue.open = async (openData: any) => {
+
+											if ((that.app as any).isMobile)
+											{
+												// Check if the file is a local file
+												const isLocal = that.isLocalFile(openData.url);
+												if (isLocal)
+												{
+													// Get the file as a base64 string with Capacitor
+													const fileBase64 = await Filesystem.readFile({ path: openData.url });
+
+													// Return the file bytes as a base64 url
+													openData.url = "data:application/pdf;base64," + fileBase64.data;
+												}
+											}
+
+											// Call the original open function
+											originalOpen.call(pdfViewerValue, openData);
+										}
+
+									}
+								}
+							});
+
+
+
+
+
+						}
+					}
+				});
+
+
+				return embed;
+
+			};
+		}
+
+
+
+
+		
     }
 
 
@@ -247,6 +358,8 @@ export default class PathLinkerPlugin extends Plugin {
 		this.app.vault.cachedRead = this.oldCachedRead;
 		this.app.vault.getResourcePath = this.originalGetResourcePath;
 		this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
+		
+		(this.app as any).embedRegistry.getEmbedCreator = this.originalGetEmbedCreater;
 
 	}
 
