@@ -17,139 +17,156 @@ const _externalPrefix = "PathLinker:";
 
 
 export default class PathLinkerPlugin extends Plugin {
-	settings: PathLinkerSettings;
+    settings: PathLinkerSettings;
 
-	uuid: string;
+    uuid: string;
 
-	originalGetFirstLinkpathDest: (linkpath: string, sourcePath: string) => TFile | null;
-	oldCachedRead: (file: TFile) => Promise<string>;
-	originalGetResourcePath: (file: TFile) => string;
+    originalGetFirstLinkpathDest: (linkpath: string, sourcePath: string) => TFile | null;
+    oldCachedRead: (file: TFile) => Promise<string>;
+    originalGetResourcePath: (file: TFile) => string;
 
-	originalGetEmbedCreater: (embedFile: TFile) => (...embedData: any[]) => any;
-
-
-
-	getUUID() : string
-	{
-		if (!this.app.isMobile) {
-			// Desktop: Use machine ID
-			try {
-				const { machineIdSync } = require('node-machine-id');
-				return machineIdSync(); // Return machine ID if available
-			} catch (error) {
-				console.error('Failed to load node-machine-id', error);
-				return "ERROR";
-			}
-		}
-
-		// Mobile: Try to get UUID from local storage, or generate a new one if it doesn't exist
-		let deviceId = localStorage.getItem('device-id');
-		if (!deviceId) {
-			// Generate a new UUID
-			deviceId = [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-			localStorage.setItem('device-id', deviceId);
-		}
-		return deviceId;
-	}
-
-	isLocalFile(filePath: string) : boolean
-	{
-		return !(filePath.startsWith("http://") || filePath.startsWith("https://"));
-	}
-
-	joinPaths(paths: string[]) {
-		if (this.app.isMobile) {
-			return paths.join('/').replace(/\/+/g, '/'); // Remove any extra slashes
-		} else {
-			return path.join(...paths);
-		}
-	}
-
-	isAbsolutePath(filePath: string) {
-		if (this.app.isMobile) {
-			return filePath.startsWith('/');
-		} else {
-			return path.isAbsolute(filePath);
-		}
-	}
-
-	// If the path is relative, use the vault as the working directory
-	// Otherwise, use the path without modification
-	useVaultAsWorkingDirectory(filePath: string) : string
-	{ 
-		if (this.isAbsolutePath(filePath) || !this.isLocalFile(filePath))
-		{
-			return filePath;
-		}
-		else
-		{
-			return this.joinPaths([this.app.vault.adapter.basePath, filePath]);
-		}
-	}
-
-	basename(filePath: string) : string {
-		if (this.app.isMobile) {
-			const segments = filePath.split('/');
-			return segments[segments.length - 1];
-		} else {
-			return path.basename(filePath, path.extname(filePath));
-		}
-	}
-
-	extname(filePath: string) : string
-	{
-		if (this.app.isMobile)
-		{
-			const lastDotIndex = filePath.lastIndexOf('.');
-        	return lastDotIndex !== -1 ? filePath.slice(lastDotIndex) : '';
-		}
-		else
-		{
-			return path.extname(filePath);
-		}
-	}
+    originalGetEmbedCreater: (embedFile: TFile) => (...embedData: any[]) => any;
 
 
-	// Creates a TFile object for a file that doesn't exist
-	// This is used for external links so that obisidan will try to read the file
-	createFakeFile(linkpath: string): TFile | null {
+    waitUntilPopulated(obj: Object, property: string, callback: (value: any) => void) {
+        
+        const internalProperty = `_${property}`; // Hidden property name
+      
+        Object.defineProperty(obj, property, {
+            get() {
+                return this[internalProperty]; // Return the stored value
+            },
+            set(value) {
+                this[internalProperty] = value; // Update the stored value
 
-		let fileName;
-		if (linkpath.startsWith(externalPrefix))
-		{
-			fileName = linkpath.replace(externalPrefix, "");
-		}
-		else
-		{
-			const fileData = linkpath.replace(externalGroupPrefix, "");
+                if (value) {
+                    callback(value); // Trigger the callback when set
+                }
+            },
+        });
+    }
 
-			// The group name will be before the first / and the remainder of the path will be after it
-			const splitIndex = fileData.indexOf("/");
+    getUUID() : string
+    {
+        if (!this.app.isMobile) {
+            // Desktop: Use machine ID
+            try {
+                const { machineIdSync } = require('node-machine-id');
+                return machineIdSync(); // Return machine ID if available
+            } catch (error) {
+                console.error('Failed to load node-machine-id', error);
+                return "ERROR";
+            }
+        }
 
-			const groupName = fileData.slice(0, splitIndex);
-			fileName = fileData.slice(splitIndex + 1);
+        // Mobile: Try to get UUID from local storage, or generate a new one if it doesn't exist
+        let deviceId = localStorage.getItem('device-id');
+        if (!deviceId) {
+            // Generate a new UUID
+            deviceId = [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+            localStorage.setItem('device-id', deviceId);
+        }
+        return deviceId;
+    }
 
-			const [newName, newPath, isValid] = this.processLink(groupName, fileName);
+    isLocalFile(filePath: string) : boolean
+    {
+        return !(filePath.startsWith("http://") || filePath.startsWith("https://"));
+    }
 
-			if (!isValid)
-				return null;
+    joinPaths(paths: string[]) {
+        if (this.app.isMobile) {
+            return paths.join('/').replace(/\/+/g, '/'); // Remove any extra slashes
+        } else {
+            return path.join(...paths);
+        }
+    }
 
-			fileName = newPath;
+    isAbsolutePath(filePath: string) {
+        if (this.app.isMobile) {
+            return filePath.startsWith('/');
+        } else {
+            return path.isAbsolute(filePath);
+        }
+    }
 
-		}
+    // If the path is relative, use the vault as the working directory
+    // Otherwise, use the path without modification
+    useVaultAsWorkingDirectory(filePath: string) : string
+    { 
+        if (this.isAbsolutePath(filePath) || !this.isLocalFile(filePath))
+        {
+            return filePath;
+        }
+        else
+        {
+            return this.joinPaths([this.app.vault.adapter.basePath, filePath]);
+        }
+    }
 
-		// Only do the check on desktop as there is no synchronous file system on mobile
-		if (!this.app.isMobile)
-		{
-			if (this.isLocalFile(fileName) && fs.existsSync(fileName))
-				return null;
-		}
+    basename(filePath: string) : string {
+        if (this.app.isMobile) {
+            const segments = filePath.split('/');
+            return segments[segments.length - 1];
+        } else {
+            return path.basename(filePath, path.extname(filePath));
+        }
+    }
 
-		const basename = this.basename(fileName);
-		const extension = this.extname(fileName).slice(1);
+    extname(filePath: string) : string
+    {
+        if (this.app.isMobile)
+        {
+            const lastDotIndex = filePath.lastIndexOf('.');
+            return lastDotIndex !== -1 ? filePath.slice(lastDotIndex) : '';
+        }
+        else
+        {
+            return path.extname(filePath);
+        }
+    }
 
 
-		// None of the following is used so all values are set to 0
+    // Creates a TFile object for a file that doesn't exist
+    // This is used for external links so that obisidan will try to read the file
+    createFakeFile(linkpath: string): TFile | null {
+
+        let fileName;
+        if (linkpath.startsWith(externalPrefix))
+        {
+            fileName = linkpath.replace(externalPrefix, "");
+        }
+        else
+        {
+            const fileData = linkpath.replace(externalGroupPrefix, "");
+
+            // The group name will be before the first / and the remainder of the path will be after it
+            const splitIndex = fileData.indexOf("/");
+
+            const groupName = fileData.slice(0, splitIndex);
+            fileName = fileData.slice(splitIndex + 1);
+
+            const [newName, newPath, isValid] = this.processLink(groupName, fileName);
+
+            if (!isValid)
+                return null;
+
+            fileName = newPath;
+
+        }
+
+        // Only do the check on desktop as there is no synchronous file system on mobile
+        if (!this.app.isMobile)
+        {
+            if (this.isLocalFile(fileName) && !fs.existsSync(fileName))
+                return null;
+        }
+
+        const basename = this.basename(fileName);
+        const extension = this.extname(fileName).slice(1);
+
+
+        // None of the following is used so all values are set to 0
         const fileStats: FileStats = {
             ctime: 0, 
             mtime: 0,
@@ -168,100 +185,100 @@ export default class PathLinkerPlugin extends Plugin {
         };
 
 
-		// This prevent errors from the function being called
-		// The file will not be cached
-		file.cache = function() {
-			return {};
-		};
+        // This prevent errors from the function being called
+        // The file will not be cached
+        file.cache = function() {
+            return {};
+        };
 
         return file;
     }
 
 
-	async onload() {
-		console.log("PathLinker loaded");
+    async onload() {
+        console.log("PathLinker loaded");
 
-		await this.loadSettings();
-		await this.saveSettings();
+        await this.loadSettings();
+        await this.saveSettings();
 
-		this.addSettingTab(new PathLinkerPluginSettingTab(this.app, this));
+        this.addSettingTab(new PathLinkerPluginSettingTab(this.app, this));
 
-		// Get a UUID for the device
-		// This is used to identify the device to get the path from the group
-		this.uuid = this.getUUID();
-		
-		// Text files such as .md and .canvas use a different system to reading files than binary (pdf, mp3)
-		// Binary files work automatically without editing the reading methods
-		// The cachedRead method is overridden for text files as these don't work otherwise
-		this.oldCachedRead = this.app.vault.cachedRead;
-		this.app.vault.cachedRead = async (file: TFile): Promise<string> => {
+        // Get a UUID for the device
+        // This is used to identify the device to get the path from the group
+        this.uuid = this.getUUID();
+        
+        // Text files such as .md and .canvas use a different system to reading files than binary (pdf, mp3)
+        // Binary files work automatically without editing the reading methods
+        // The cachedRead method is overridden for text files as these don't work otherwise
+        this.oldCachedRead = this.app.vault.cachedRead;
+        this.app.vault.cachedRead = async (file: TFile): Promise<string> => {
 
-			// If the path starts with _externalPrefix, it's an external file
-			// This prefix is prepended by the plugin
-			if (file.path.startsWith(_externalPrefix)) {
-				// Return a custom file object for external files
+            // If the path starts with _externalPrefix, it's an external file
+            // This prefix is prepended by the plugin
+            if (file.path.startsWith(_externalPrefix)) {
+                // Return a custom file object for external files
 
-				const filePath = this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, ""));
+                const filePath = this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, ""));
 
-				if (this.app.isMobile)
-				{
-					
-					// Read the file with Capacitor
-					let result = await Filesystem.readFile({ path: filePath });
+                if (this.app.isMobile)
+                {
+                    
+                    // Read the file with Capacitor
+                    let result = await Filesystem.readFile({ path: filePath });
 
-					if (result.data instanceof Blob) {
-						const base64Data = await result.data.text();
-			
-						return base64Data;
-					} else {
-						const decodedContent = atob(result.data);
-						return decodedContent;
-					}
-				}
-				else
-				{	
-					return fs.readFileSync(filePath, 'utf8');
-				}
-			}
-			return this.oldCachedRead.call(this.app.vault, file);
-		};
-		
-
-
-		this.originalGetResourcePath = this.app.vault.getResourcePath; // Save the original function
-		// Override the getResourcePath method
-		this.app.vault.getResourcePath = (file: TFile): string => {
-			// If the path contains _externalPrefix, it's an external file
-			// Remove this prefix and anything before it (the vault root path)
-			if (file.path.startsWith(_externalPrefix)) {
-
-				let stripped = file.path.replace(_externalPrefix, "");
-
-				const isTextFile = file.extension === "md" || file.extension === "canvas" || file.extension === "json" || file.extension === "txt";
-				if (!isTextFile)
-				{
-					// Remove "./" from the start of the path
-					stripped = this.useVaultAsWorkingDirectory(stripped.replace("./", ""));
-				}
-
-				const isLocal = this.isLocalFile(stripped);
-				const prefix = isLocal ? Platform.resourcePathPrefix : "";
-
-				return prefix + stripped;
-			}
-
-			// For other files, allow the original method to handle them
-			return this.originalGetResourcePath.call(this.app.vault, file);
-		};
+                    if (result.data instanceof Blob) {
+                        const base64Data = await result.data.text();
+            
+                        return base64Data;
+                    } else {
+                        const decodedContent = atob(result.data);
+                        return decodedContent;
+                    }
+                }
+                else
+                {	
+                    return fs.readFileSync(filePath, 'utf8');
+                }
+            }
+            return this.oldCachedRead.call(this.app.vault, file);
+        };
+        
 
 
-		// Intercept getFirstLinkpathDest to handle external links
+        this.originalGetResourcePath = this.app.vault.getResourcePath; // Save the original function
+        // Override the getResourcePath method
+        this.app.vault.getResourcePath = (file: TFile): string => {
+            // If the path contains _externalPrefix, it's an external file
+            // Remove this prefix and anything before it (the vault root path)
+            if (file.path.startsWith(_externalPrefix)) {
+
+                let stripped = file.path.replace(_externalPrefix, "");
+
+                const isTextFile = file.extension === "md" || file.extension === "canvas" || file.extension === "json" || file.extension === "txt";
+                if (!isTextFile)
+                {
+                    // Remove "./" from the start of the path
+                    stripped = this.useVaultAsWorkingDirectory(stripped.replace("./", ""));
+                }
+
+                const isLocal = this.isLocalFile(stripped);
+                const prefix = isLocal ? Platform.resourcePathPrefix : "";
+
+                return prefix + stripped;
+            }
+
+            // For other files, allow the original method to handle them
+            return this.originalGetResourcePath.call(this.app.vault, file);
+        };
+
+
+        // Intercept getFirstLinkpathDest to handle external links
         this.originalGetFirstLinkpathDest = this.app.metadataCache.getFirstLinkpathDest;
         this.app.metadataCache.getFirstLinkpathDest = (linkpath: string, sourcePath: string): TFile | null => {
             if (linkpath.startsWith(externalPrefix) || linkpath.startsWith(externalGroupPrefix)) {
                 // Return a custom file object for external links
-				// This creates a TFile object to a file that doesn't exist so that obisidan will try to read it
-				// This read will later be intercepted so that the correct file is read
+                // This creates a TFile object to a file that doesn't exist so that obisidan will try to read it
+                // This read will later be intercepted so that the correct file is read
                 return this.createFakeFile(linkpath);
             }
 
@@ -270,124 +287,141 @@ export default class PathLinkerPlugin extends Plugin {
         };
 
 
-		let that = this;
+        let that = this;
 
-		this.originalGetEmbedCreater = this.app.embedRegistry.getEmbedCreator;
+        this.originalGetEmbedCreater = this.app.embedRegistry.getEmbedCreator;
 
-		if(this.app.isMobile)
-		this.app.embedRegistry.getEmbedCreator = (embedFile: TFile) => {
-			let embedCreator = this.originalGetEmbedCreater.call(this.app.embedRegistry, embedFile);
+        if(this.app.isMobile)
+        this.app.embedRegistry.getEmbedCreator = (embedFile: TFile) => {
+            let embedCreator = this.originalGetEmbedCreater.call(this.app.embedRegistry, embedFile);
 
-			if(!embedCreator)
-				return embedCreator;
+            if(!embedCreator)
+                return embedCreator;
 
-			return (...embedData: any[]): any => {
+            return (...embedData: any[]): any => {
 
-				const embed = embedCreator(...embedData);
+                const embed = embedCreator(...embedData);
 
-				// Only PDFs need 
-				if (embedFile.extension != "pdf") {
-					return embed;
-				}
+                // PDFs are handled separately since they use pdf.js
+                if (embedFile.extension != "pdf") {
 
+                    // Text files are handled in the cachedRead method
+                    if (embedFile.extension == "md" || embedFile.extension == "canvas" || embedFile.extension == "json" || embedFile.extension == "txt") {
+                        return embed;
+                    }
 
-				Object.defineProperty(embed.viewer, "child", {
-					get() {
-						return this._child; // Return the stored value
-					},
-					set(childValue) {
-						this._child = childValue; // Store the new value
-						if (childValue) {
+                    // Wait until the display element (img, audio, etc) is added to the embed container
+                    const observer = new MutationObserver(async () => {
 
-							
-							Object.defineProperty(childValue, "pdfViewer", {
-								get() {
-									return this._pdfViewer; // Return the stored value
-								},
-								set(pdfViewerValue) {
-									this._pdfViewer = pdfViewerValue; // Store the new value
-									if (pdfViewerValue) {
-	
-										const originalOpen = pdfViewerValue.open;
-										pdfViewerValue.open = async (openData: OpenPDFData) => {
+                        if (embed.containerEl.children[0]) {
+    
+                            // 
+                            if (embed.containerEl.children[0].src.startsWith("file://")) {
 
-											if (that.app.isMobile)
-											{
-												// Check if the file is a local file
-												const isLocal = that.isLocalFile(openData.url);
-												if (isLocal)
-												{
-													// Get the file as a base64 string with Capacitor
-													const fileBase64 = await Filesystem.readFile({ path: openData.url });
+                                // Get file as base64 string
+                                let filePath = embed.containerEl.children[0].src;
+                                filePath = filePath.replace(Platform.resourcePathPrefix, "");
+                                
+                                // Remove # and everything after it
+                                filePath = filePath.split("#")[0];
+                                
+                                // Read the file as a base64 string with Capacitor
+                                const fileBase64 = (await Filesystem.readFile({ path: filePath })).data;
 
-													// Return the file bytes as a base64 url
-													openData.url = "data:application/pdf;base64," + fileBase64.data;
-												}
-											}
+                                // Get the data type for the file (image, audio)
+                                const dataType = this.app.viewRegistry.getTypeByExtension(embedFile.extension);
 
-											// Call the original open function
-											originalOpen.call(pdfViewerValue, openData);
-										}
+                                // Return the file bytes as a base64 url
+                                embed.containerEl.children[0].src = "data:" + dataType + "/" + embedFile.extension + ";base64," + fileBase64;
 
-									}
-								}
-							});
+                            }
+                      
+                            // Stop observing once the src has been replaced
+                            observer.disconnect();
+                        }
+                    });
+                    observer.observe(embed.containerEl, { childList: true });
+
+                    return embed;
+                }
 
 
-						}
-					}
-				});
+                // Wait until the viewer is added to the embed container
+                this.waitUntilPopulated(embed.viewer, "child", (child) => {
+                    this.waitUntilPopulated(child, "pdfViewer", (pdfViewer) => {
+                        const originalOpen = pdfViewer.open;
+                        pdfViewer.open = async (openData: OpenPDFData) => {
+
+                            if (this.app.isMobile)
+                            {
+                                // Check if the file is a local file
+                                const isLocal = that.isLocalFile(openData.url);
+                                if (isLocal)
+                                {
+                                    // Get the file as a base64 string with Capacitor
+                                    const fileBase64 = await Filesystem.readFile({ path: openData.url });
+
+                                    // Return the file bytes as a base64 url
+                                    openData.url = "data:application/pdf;base64," + fileBase64.data;
+                                }
+                            }
+
+                            // Call the original open function
+                            originalOpen.call(pdfViewer, openData);
+                        }
+                    });
+                });
 
 
-				return embed;
+                return embed;
 
-			};
-		}
+            };
+        }
 
-	
+    
     }
 
 
-	onunload() {
-		
-		this.app.vault.cachedRead = this.oldCachedRead;
-		this.app.vault.getResourcePath = this.originalGetResourcePath;
-		this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
-		
-		this.app.embedRegistry.getEmbedCreator = this.originalGetEmbedCreater;
+    onunload() {
+        
+        this.app.vault.cachedRead = this.oldCachedRead;
+        this.app.vault.getResourcePath = this.originalGetResourcePath;
+        this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
+        
+        this.app.embedRegistry.getEmbedCreator = this.originalGetEmbedCreater;
 
-	}
+    }
 
-	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			await this.loadData()
-		);
-	}
+    async loadSettings() {
+        this.settings = Object.assign(
+            {},
+            DEFAULT_SETTINGS,
+            await this.loadData()
+        );
+    }
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+    async saveSettings() {
+        await this.saveData(this.settings);
+    }
 
 
-	processLink(group: string, relativePath: string) : [string, string, boolean] {
-		const devices = this.settings.groups.find((g) => g.name === group);
-		if (!devices) {
-			return ["(Invalid group)", "#", false];
-		}
+    processLink(group: string, relativePath: string) : [string, string, boolean] {
+        const devices = this.settings.groups.find((g) => g.name === group);
+        if (!devices) {
+            return ["(Invalid group)", "#", false];
+        }
 
-		const basePath = devices.devices.find((d) => d.id === this.uuid)?.basePath;
-		
-		if (!basePath) {
-			return ["(Invalid device)", "#", false];
-		}
-	
-		if (basePath) {
-			const resolvedPath = `${basePath}/${relativePath}`;
-			return ["", resolvedPath, true];
-		} else {
-			return ["(Invalid group)", "#", false];
-		}
-	}
+        const basePath = devices.devices.find((d) => d.id === this.uuid)?.basePath;
+        
+        if (!basePath) {
+            return ["(Invalid device)", "#", false];
+        }
+    
+        if (basePath) {
+            const resolvedPath = `${basePath}/${relativePath}`;
+            return ["", resolvedPath, true];
+        } else {
+            return ["(Invalid group)", "#", false];
+        }
+    }
 }

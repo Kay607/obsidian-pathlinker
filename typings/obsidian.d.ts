@@ -4,6 +4,7 @@ declare module 'obsidian' {
 	interface App {
 		isMobile: boolean
 		embedRegistry: EmbedRegistry
+		viewRegistry: ViewRegistry
 	}
 
 	interface DataAdapter {
@@ -12,6 +13,10 @@ declare module 'obsidian' {
 
 	interface TFile {
 		cache?: (() => {})
+	}
+
+	interface ViewRegistry {
+		getTypeByExtension: (ext: string) => string;
 	}
 
 	interface EmbedRegistry {
