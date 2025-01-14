@@ -2,7 +2,7 @@
 ![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22{{ pluginID }}%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)
 -->
 
-# Path Linker
+# External File Linker
 Allows you to link to external files in obsidian to embed them
 
 This plugin uses the usual syntax of `![[filepath]]` to link to files. 
