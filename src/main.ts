@@ -1,4 +1,5 @@
 import { App, FileStats, Platform, Plugin, TFile } from "obsidian";
+import { OpenPDFData } from 'path-linker';
 
 import { PathLinkerSettings, PathLinkerPluginSettingTab, DEFAULT_SETTINGS } from "./settings";
 
@@ -24,13 +25,13 @@ export default class PathLinkerPlugin extends Plugin {
 	oldCachedRead: (file: TFile) => Promise<string>;
 	originalGetResourcePath: (file: TFile) => string;
 
-	originalGetEmbedCreater: (embedData: any) => any;
+	originalGetEmbedCreater: (embedFile: TFile) => (...embedData: any[]) => any;
 
 
 
 	getUUID() : string
 	{
-		if (!(this.app as any).isMobile) {
+		if (!this.app.isMobile) {
 			// Desktop: Use machine ID
 			try {
 				const { machineIdSync } = require('node-machine-id');
@@ -57,7 +58,7 @@ export default class PathLinkerPlugin extends Plugin {
 	}
 
 	joinPaths(paths: string[]) {
-		if ((this.app as any).isMobile) {
+		if (this.app.isMobile) {
 			return paths.join('/').replace(/\/+/g, '/'); // Remove any extra slashes
 		} else {
 			return path.join(...paths);
@@ -65,7 +66,7 @@ export default class PathLinkerPlugin extends Plugin {
 	}
 
 	isAbsolutePath(filePath: string) {
-		if ((this.app as any).isMobile) {
+		if (this.app.isMobile) {
 			return filePath.startsWith('/');
 		} else {
 			return path.isAbsolute(filePath);
@@ -82,12 +83,12 @@ export default class PathLinkerPlugin extends Plugin {
 		}
 		else
 		{
-			return this.joinPaths([(this.app.vault.adapter as any).basePath, filePath]);
+			return this.joinPaths([this.app.vault.adapter.basePath, filePath]);
 		}
 	}
 
 	basename(filePath: string) : string {
-		if ((this.app as any).isMobile) {
+		if (this.app.isMobile) {
 			const segments = filePath.split('/');
 			return segments[segments.length - 1];
 		} else {
@@ -97,7 +98,7 @@ export default class PathLinkerPlugin extends Plugin {
 
 	extname(filePath: string) : string
 	{
-		if ((this.app as any).isMobile)
+		if (this.app.isMobile)
 		{
 			const lastDotIndex = filePath.lastIndexOf('.');
         	return lastDotIndex !== -1 ? filePath.slice(lastDotIndex) : '';
@@ -138,7 +139,7 @@ export default class PathLinkerPlugin extends Plugin {
 		}
 
 		// Only do the check on desktop as there is no synchronous file system on mobile
-		if (!(this.app as any).isMobile)
+		if (!this.app.isMobile)
 		{
 			if (this.isLocalFile(fileName) && fs.existsSync(fileName))
 				return null;
@@ -169,7 +170,7 @@ export default class PathLinkerPlugin extends Plugin {
 
 		// This prevent errors from the function being called
 		// The file will not be cached
-		(file as any).cache = function() {
+		file.cache = function() {
 			return {};
 		};
 
@@ -202,7 +203,7 @@ export default class PathLinkerPlugin extends Plugin {
 
 				const filePath = this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, ""));
 
-				if ((this.app as any).isMobile)
+				if (this.app.isMobile)
 				{
 					
 					// Read the file with Capacitor
@@ -256,7 +257,7 @@ export default class PathLinkerPlugin extends Plugin {
 
 		// Intercept getFirstLinkpathDest to handle external links
         this.originalGetFirstLinkpathDest = this.app.metadataCache.getFirstLinkpathDest;
-        (this.app.metadataCache.getFirstLinkpathDest as any) = (linkpath: string, sourcePath: string): TFile | null => {
+        this.app.metadataCache.getFirstLinkpathDest = (linkpath: string, sourcePath: string): TFile | null => {
             if (linkpath.startsWith(externalPrefix) || linkpath.startsWith(externalGroupPrefix)) {
                 // Return a custom file object for external links
 				// This creates a TFile object to a file that doesn't exist so that obisidan will try to read it
@@ -271,21 +272,21 @@ export default class PathLinkerPlugin extends Plugin {
 
 		let that = this;
 
-		this.originalGetEmbedCreater = (this.app as any).embedRegistry.getEmbedCreator;
+		this.originalGetEmbedCreater = this.app.embedRegistry.getEmbedCreator;
 
-		if((this.app as any).isMobile)
-		(this.app as any).embedRegistry.getEmbedCreator = (embedData: any) => {
-			let embedCreator = this.originalGetEmbedCreater.call((this.app as any).embedRegistry, embedData);
+		if(this.app.isMobile)
+		this.app.embedRegistry.getEmbedCreator = (embedFile: TFile) => {
+			let embedCreator = this.originalGetEmbedCreater.call(this.app.embedRegistry, embedFile);
 
 			if(!embedCreator)
 				return embedCreator;
 
-			return (app: App, containerEl: HTMLElement, depth: number, linktext: string, showInline: boolean, sourcePath: string) => {
+			return (...embedData: any[]): any => {
 
-				const embed = embedCreator(app, containerEl, depth, linktext, showInline, sourcePath);
+				const embed = embedCreator(...embedData);
 
 				// Only PDFs need 
-				if (embedData.extension != "pdf") {
+				if (embedFile.extension != "pdf") {
 					return embed;
 				}
 
@@ -308,9 +309,9 @@ export default class PathLinkerPlugin extends Plugin {
 									if (pdfViewerValue) {
 	
 										const originalOpen = pdfViewerValue.open;
-										pdfViewerValue.open = async (openData: any) => {
+										pdfViewerValue.open = async (openData: OpenPDFData) => {
 
-											if ((that.app as any).isMobile)
+											if (that.app.isMobile)
 											{
 												// Check if the file is a local file
 												const isLocal = that.isLocalFile(openData.url);
@@ -333,9 +334,6 @@ export default class PathLinkerPlugin extends Plugin {
 							});
 
 
-
-
-
 						}
 					}
 				});
@@ -346,10 +344,7 @@ export default class PathLinkerPlugin extends Plugin {
 			};
 		}
 
-
-
-
-		
+	
     }
 
 
@@ -359,7 +354,7 @@ export default class PathLinkerPlugin extends Plugin {
 		this.app.vault.getResourcePath = this.originalGetResourcePath;
 		this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
 		
-		(this.app as any).embedRegistry.getEmbedCreator = this.originalGetEmbedCreater;
+		this.app.embedRegistry.getEmbedCreator = this.originalGetEmbedCreater;
 
 	}
 
