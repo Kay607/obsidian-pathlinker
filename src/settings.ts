@@ -35,15 +35,13 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 		let { containerEl } = this;
 
 		containerEl.empty();
-		
-		containerEl.createEl('h2', { text: 'Group & Device Management' });
 
 
 		// Button to add a new group
 		new Setting(containerEl)
 		.addButton((button) =>
 			button
-			.setButtonText('Add New Group')
+			.setButtonText('Add new group')
 			.onClick(() => this.addNewGroup())
 		);
 
@@ -62,7 +60,7 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 			new Setting(groupHeader)
 			  .addButton((button) =>
 				button
-				  .setButtonText('Delete Group')
+				  .setButtonText('Delete group')
 				  .onClick(() => this.deleteGroup(groupIndex))
 			  );
 	  
@@ -82,10 +80,10 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 			})
 
 			// Add an option to change the group name from the device list section
-			const groupNameSetting = new Setting(devicesList)   
+			new Setting(devicesList)   
 			.addText((text) =>
 				text
-				.setPlaceholder('Group Name')
+				.setPlaceholder('Group name')
 				.setValue(group.name)
 				.onChange(async (value) => {
 					group.name = value;
@@ -96,51 +94,51 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 
 			// List devices under the group
 			group.devices.forEach((device, deviceIndex) => {
-			  const deviceEl = devicesList.createDiv({ cls: 'device' });
-	  
-			  
-			  new Setting(deviceEl)
+				const deviceEl = devicesList.createDiv({ cls: 'device' });
+		
+				
+				new Setting(deviceEl)
 				.addText((text) =>
-				  text
-					.setPlaceholder('Device Name')
+					text
+					.setPlaceholder('Device name')
 					.setValue(device.name)
 					.onChange(async (value) => {
-					  device.name = value;
-					  await this.plugin.saveSettings();
+						device.name = value;
+						await this.plugin.saveSettings();
 					})
 				)
 				.addText((text) =>
-				  text
+					text
 					.setPlaceholder('Device ID')
 					.setValue(device.id)
 					.onChange(async (value) => {
-					  device.id = value;
-					  await this.plugin.saveSettings();
+						device.id = value;
+						await this.plugin.saveSettings();
 					})
 				)
 				.addText((text) =>
 					text    
-					.setPlaceholder('Device Base Path')
+					.setPlaceholder('Device base path')
 					.setValue(device.basePath)
 					.onChange(async (value) => {
-					device.basePath = value;
-					await this.plugin.saveSettings();
+						device.basePath = value;
+						await this.plugin.saveSettings();
 					})
 				)
 
 				.addButton((button) =>
 				  button
-					.setButtonText('Delete Device')
+					.setButtonText('Delete device')
 					.onClick(() => this.deleteDevice(groupIndex, deviceIndex))
 				)
 			});
 	  
 			// Add device button inside the collapsible section
 			new Setting(devicesList)
-			  .addButton((button) =>
+			.addButton((button) =>
 				button
-				  .setButtonText('Add Device')
-				  .onClick(() => this.addDeviceToGroup(groupIndex))
+				.setButtonText('Add device')
+				.onClick(() => this.addDeviceToGroup(groupIndex))
 			  );
 		});
 	}
@@ -148,7 +146,7 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 	// Add a new group
 	async addNewGroup() {
 		const newGroup: Group = {
-			name: "New Group",
+			name: "New group",
 			devices: [],
 		};
 

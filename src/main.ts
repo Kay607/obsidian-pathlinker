@@ -226,7 +226,7 @@ export default class PathLinkerPlugin extends Plugin {
                 {
                     
                     // Read the file with Capacitor
-                    let result = await Filesystem.readFile({ path: filePath });
+                    const result = await Filesystem.readFile({ path: filePath });
 
                     if (result.data instanceof Blob) {
                         const base64Data = await result.data.text();
@@ -296,7 +296,7 @@ export default class PathLinkerPlugin extends Plugin {
 
         if(this.app.isMobile)
         this.app.embedRegistry.getEmbedCreator = (embedFile: TFile) => {
-            let embedCreator = this.originalGetEmbedCreater.call(this.app.embedRegistry, embedFile);
+            const embedCreator = this.originalGetEmbedCreater.call(this.app.embedRegistry, embedFile);
 
             if(!embedCreator)
                 return embedCreator;
@@ -326,6 +326,8 @@ export default class PathLinkerPlugin extends Plugin {
 
                                 // Get file data as base64 string
                                 let filePath = embed.containerEl.children[0].src;
+
+                                // Remove file:// from the start
                                 filePath = filePath.replace(Platform.resourcePathPrefix, "");
                                 
                                 // Remove # and everything after it
