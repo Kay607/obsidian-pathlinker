@@ -132,10 +132,12 @@ export default class PathLinkerPlugin extends Plugin {
     createFakeFile(linkpath: string): TFile | null {
 
         let fileName;
+        // Handle if it is an external link
         if (linkpath.startsWith(externalPrefix))
         {
             fileName = linkpath.replace(externalPrefix, "");
         }
+        // Handle if it is a group link
         else
         {
             const fileData = linkpath.replace(externalGroupPrefix, "");
@@ -143,11 +145,14 @@ export default class PathLinkerPlugin extends Plugin {
             // The group name will be before the first / and the remainder of the path will be after it
             const splitIndex = fileData.indexOf("/");
 
+            // Get the group name and the file name
             const groupName = fileData.slice(0, splitIndex);
             fileName = fileData.slice(splitIndex + 1);
 
+            // Process the link to get the full path to the file
             const [newName, newPath, isValid] = this.processLink(groupName, fileName);
 
+            // This happens if there is no group with this name or no matching device
             if (!isValid)
                 return null;
 
@@ -164,7 +169,6 @@ export default class PathLinkerPlugin extends Plugin {
 
         const basename = this.basename(fileName);
         const extension = this.extname(fileName).slice(1);
-
 
         // None of the following is used so all values are set to 0
         const fileStats: FileStats = {
@@ -196,8 +200,6 @@ export default class PathLinkerPlugin extends Plugin {
 
 
     async onload() {
-        console.log("PathLinker loaded");
-
         await this.loadSettings();
         await this.saveSettings();
 
@@ -240,6 +242,8 @@ export default class PathLinkerPlugin extends Plugin {
                     return fs.readFileSync(filePath, 'utf8');
                 }
             }
+
+            // For normal embedded files, allow the original method to handle them
             return this.oldCachedRead.call(this.app.vault, file);
         };
         
@@ -261,6 +265,7 @@ export default class PathLinkerPlugin extends Plugin {
                     stripped = this.useVaultAsWorkingDirectory(stripped.replace("./", ""));
                 }
 
+                // Only add the prefix for local files, http/https files should not have it
                 const isLocal = this.isLocalFile(stripped);
                 const prefix = isLocal ? Platform.resourcePathPrefix : "";
 
@@ -287,8 +292,6 @@ export default class PathLinkerPlugin extends Plugin {
         };
 
 
-        let that = this;
-
         this.originalGetEmbedCreater = this.app.embedRegistry.getEmbedCreator;
 
         if(this.app.isMobile)
@@ -298,6 +301,8 @@ export default class PathLinkerPlugin extends Plugin {
             if(!embedCreator)
                 return embedCreator;
 
+            // Replace the normal embed creator with a wrapper
+            // This gives the plugin access to the embed object after it's created
             return (...embedData: any[]): any => {
 
                 const embed = embedCreator(...embedData);
@@ -305,7 +310,7 @@ export default class PathLinkerPlugin extends Plugin {
                 // PDFs are handled separately since they use pdf.js
                 if (embedFile.extension != "pdf") {
 
-                    // Text files are handled in the cachedRead method
+                    // Text files are handled in the cachedRead method and do not need any further processing
                     if (embedFile.extension == "md" || embedFile.extension == "canvas" || embedFile.extension == "json" || embedFile.extension == "txt") {
                         return embed;
                     }
@@ -313,12 +318,13 @@ export default class PathLinkerPlugin extends Plugin {
                     // Wait until the display element (img, audio, etc) is added to the embed container
                     const observer = new MutationObserver(async () => {
 
+                        // Check if the element has been added
                         if (embed.containerEl.children[0]) {
     
-                            // 
+                            // Check if the file is a local file
                             if (embed.containerEl.children[0].src.startsWith("file://")) {
 
-                                // Get file as base64 string
+                                // Get file data as base64 string
                                 let filePath = embed.containerEl.children[0].src;
                                 filePath = filePath.replace(Platform.resourcePathPrefix, "");
                                 
@@ -345,28 +351,29 @@ export default class PathLinkerPlugin extends Plugin {
                     return embed;
                 }
 
+                // PDFs are handled here
 
                 // Wait until the viewer is added to the embed container
                 this.waitUntilPopulated(embed.viewer, "child", (child) => {
+                    // Wait until the pdfViewer is added to the viewer
                     this.waitUntilPopulated(child, "pdfViewer", (pdfViewer) => {
+
+                        // Override the open function to handle local files
                         const originalOpen = pdfViewer.open;
                         pdfViewer.open = async (openData: OpenPDFData) => {
 
-                            if (this.app.isMobile)
+                            // Check if the file is a local file
+                            const isLocal = this.isLocalFile(openData.url);
+                            if (isLocal)
                             {
-                                // Check if the file is a local file
-                                const isLocal = that.isLocalFile(openData.url);
-                                if (isLocal)
-                                {
-                                    // Get the file as a base64 string with Capacitor
-                                    const fileBase64 = await Filesystem.readFile({ path: openData.url });
+                                // Get the file as a base64 string with Capacitor
+                                const fileBase64 = await Filesystem.readFile({ path: openData.url });
 
-                                    // Return the file bytes as a base64 url
-                                    openData.url = "data:application/pdf;base64," + fileBase64.data;
-                                }
+                                // Return the file bytes as a base64 url
+                                openData.url = "data:application/pdf;base64," + fileBase64.data;
                             }
 
-                            // Call the original open function
+                            // Call the original open function with the modified url
                             originalOpen.call(pdfViewer, openData);
                         }
                     });
@@ -384,10 +391,10 @@ export default class PathLinkerPlugin extends Plugin {
 
     onunload() {
         
+        // Restore the original methods
         this.app.vault.cachedRead = this.oldCachedRead;
         this.app.vault.getResourcePath = this.originalGetResourcePath;
         this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
-        
         this.app.embedRegistry.getEmbedCreator = this.originalGetEmbedCreater;
 
     }
@@ -406,22 +413,20 @@ export default class PathLinkerPlugin extends Plugin {
 
 
     processLink(group: string, relativePath: string) : [string, string, boolean] {
+        // Try to find the group in the settings
         const devices = this.settings.groups.find((g) => g.name === group);
         if (!devices) {
             return ["(Invalid group)", "#", false];
         }
 
+        // Try to find a device in the group with this device's UUID
         const basePath = devices.devices.find((d) => d.id === this.uuid)?.basePath;
-        
         if (!basePath) {
             return ["(Invalid device)", "#", false];
         }
     
-        if (basePath) {
-            const resolvedPath = `${basePath}/${relativePath}`;
-            return ["", resolvedPath, true];
-        } else {
-            return ["(Invalid group)", "#", false];
-        }
+        // Return the resolved path
+        const resolvedPath = `${basePath}/${relativePath}`;
+        return ["", resolvedPath, true];
     }
 }
