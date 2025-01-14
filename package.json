@@ -26,6 +26,7 @@
 		"typescript": "^4.9.0"
 	},
 	"dependencies": {
+		"@capacitor/core": "^6.2.0",
 		"@capacitor/filesystem": "^6.0.2",
 		"node-machine-id": "^1.1.12"
 	}
