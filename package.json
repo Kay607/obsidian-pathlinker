@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-pathlinker",
-	"version": "0.0.8",
+	"version": "0.1.0",
 	"description": "Embed external files",
 	"main": "main.js",
 	"scripts": {
@@ -27,8 +27,6 @@
 	},
 	"dependencies": {
 		"@capacitor/filesystem": "^6.0.2",
-		"@kaciras/deasync": "^1.1.0",
-		"node-machine-id": "^1.1.12",
-		"react-native-fs": "^2.20.0"
+		"node-machine-id": "^1.1.12"
 	}
 }
