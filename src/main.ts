@@ -158,7 +158,7 @@ export default class PathLinkerPlugin extends Plugin {
         // Only do the check on desktop as there is no synchronous file system on mobile
         if (!this.app.isMobile)
         {
-            if (this.isLocalFile(fileName) && !fs.existsSync(fileName))
+            if (this.isLocalFile(fileName) && !fs.existsSync(this.useVaultAsWorkingDirectory(fileName)))
                 return null;
         }
 

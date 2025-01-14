@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-pathlinker",
 	"name": "External File Linker",
-	"version": "0.1.0",
+	"version": "0.1.2",
 	"minAppVersion": "0.15.0",
 	"description": "Embed external files into your notes.",
 	"author": "Kay606",
