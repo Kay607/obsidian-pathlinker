@@ -66,17 +66,16 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 	  
 			// Initially hide the devices list
 			const devicesList = groupContainer.createDiv({ cls: 'devices-list'});
-			devicesList.style.display = this.openedGroups[groupIndex] ? 'block' : 'none';
+			devicesList.classList.toggle('hiddenDevice', !this.openedGroups[groupIndex]);
 	  
 			// Toggle the visibility of the devices list when the arrow is clicked
 			groupTitle.addEventListener('click', () => {
 
-				let isVisible = devicesList.style.display === 'block';
-				isVisible = !isVisible;
-				this.openedGroups[groupIndex] = isVisible;
+				// Toggle visibility
+				this.openedGroups[groupIndex] = !this.openedGroups[groupIndex];
 
-				devicesList.style.display = isVisible ? 'block' : 'none';
-				groupTitle.textContent = (isVisible ? downArrowSymbol : rightArrowSymbol) + group.name;  // Toggle arrow direction
+				devicesList.classList.toggle('hiddenDevice', !this.openedGroups[groupIndex]);
+				groupTitle.textContent = (this.openedGroups[groupIndex] ? downArrowSymbol : rightArrowSymbol) + group.name;  // Toggle arrow direction
 			})
 
 			// Add an option to change the group name from the device list section
