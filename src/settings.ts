@@ -1,5 +1,6 @@
 import PathLinkerPlugin from "./main";
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, TextComponent } from "obsidian";
+
 
 interface Device {
 	name: string;
@@ -95,8 +96,11 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 			group.devices.forEach((device, deviceIndex) => {
 				const deviceEl = devicesList.createDiv({ cls: 'device' });
 		
-				
-				new Setting(deviceEl)
+				let pathTextComponent: TextComponent;
+
+				let deviceSetting = new Setting(deviceEl);
+
+				deviceSetting
 				.addText((text) =>
 					text
 					.setPlaceholder('Device name')
@@ -115,18 +119,50 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 				)
-				.addText((text) =>
+				.addText((text) => {
+
+					pathTextComponent = text;
+
 					text    
 					.setPlaceholder('Device base path')
 					.setValue(device.basePath)
 					.onChange(async (value) => {
 						device.basePath = value;
 						await this.plugin.saveSettings();
-					})
-				)
+					});
+				});
 
+				if (!this.app.isMobile)
+				deviceSetting.addButton((button) =>
+					button
+					.setIcon('folder')
+					.setTooltip('Select folder')
+					.onClick(async () => {
+			
+						const electron = require('electron');
+						const result = await electron.remote.dialog.showOpenDialog({
+							properties: ['openDirectory'], // Only allow folder selection
+						});
+
+
+						if (result.canceled || result.filePaths.length === 0)
+							return;
+
+						const selectedFolder = result.filePaths[0];
+
+						// Update the device base path
+						device.basePath = selectedFolder;
+
+						// Update the text field with the selected folder path
+						pathTextComponent.setValue(device.basePath);
+
+						await this.plugin.saveSettings();
+					})
+				);
+
+				deviceSetting
 				.addButton((button) =>
-				  button
+					button
 					.setButtonText('Delete device')
 					.onClick(() => this.deleteDevice(groupIndex, deviceIndex))
 				)
