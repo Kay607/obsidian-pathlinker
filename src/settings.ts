@@ -1,5 +1,5 @@
 import PathLinkerPlugin from "./main";
-import { App, PluginSettingTab, Setting, TextComponent } from "obsidian";
+import { App, PluginSettingTab, Setting, TextComponent, Platform } from "obsidian";
 
 
 interface Device {
@@ -132,7 +132,7 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 					});
 				});
 
-				if (!this.app.isMobile)
+				if (!Platform.isMobile)
 				deviceSetting.addButton((button) =>
 					button
 					.setIcon('folder')

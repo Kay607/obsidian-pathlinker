@@ -2,7 +2,6 @@ import * as Obsidian from 'obsidian';
 
 declare module 'obsidian' {
 	interface App {
-		isMobile: boolean
 		embedRegistry: EmbedRegistry
 		viewRegistry: ViewRegistry
 	}

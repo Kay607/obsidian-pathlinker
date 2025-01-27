@@ -1,4 +1,4 @@
-import { App, FileStats, Platform, Plugin, TFile } from "obsidian";
+import { FileStats, Platform, Plugin, TFile } from "obsidian";
 import { OpenPDFData } from 'path-linker';
 
 import { PathLinkerSettings, PathLinkerPluginSettingTab, DEFAULT_SETTINGS } from "./settings";
@@ -48,7 +48,7 @@ export default class PathLinkerPlugin extends Plugin {
 
     getUUID() : string
     {
-        if (!this.app.isMobile) {
+        if (!Platform.isMobile) {
             // Desktop: Use machine ID
             try {
                 const { machineIdSync } = require('node-machine-id');
@@ -75,7 +75,7 @@ export default class PathLinkerPlugin extends Plugin {
     }
 
     joinPaths(paths: string[]) {
-        if (this.app.isMobile) {
+        if (Platform.isMobile) {
             return paths.join('/').replace(/\/+/g, '/'); // Remove any extra slashes
         } else {
             return path.join(...paths);
@@ -83,7 +83,7 @@ export default class PathLinkerPlugin extends Plugin {
     }
 
     isAbsolutePath(filePath: string) {
-        if (this.app.isMobile) {
+        if (Platform.isMobile) {
             return filePath.startsWith('/');
         } else {
             return path.isAbsolute(filePath);
@@ -105,7 +105,7 @@ export default class PathLinkerPlugin extends Plugin {
     }
 
     basename(filePath: string) : string {
-        if (this.app.isMobile) {
+        if (Platform.isMobile) {
             const segments = filePath.split('/');
             return segments[segments.length - 1];
         } else {
@@ -115,7 +115,7 @@ export default class PathLinkerPlugin extends Plugin {
 
     extname(filePath: string) : string
     {
-        if (this.app.isMobile)
+        if (Platform.isMobile)
         {
             const lastDotIndex = filePath.lastIndexOf('.');
             return lastDotIndex !== -1 ? filePath.slice(lastDotIndex) : '';
@@ -161,7 +161,7 @@ export default class PathLinkerPlugin extends Plugin {
         }
 
         // Only do the check on desktop as there is no synchronous file system on mobile
-        if (!this.app.isMobile)
+        if (!Platform.isMobile)
         {
             if (this.isLocalFile(fileName) && !fs.existsSync(this.useVaultAsWorkingDirectory(fileName)))
                 return null;
@@ -222,7 +222,7 @@ export default class PathLinkerPlugin extends Plugin {
 
                 const filePath = this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, ""));
 
-                if (this.app.isMobile)
+                if (Platform.isMobile)
                 {
                     
                     // Read the file with Capacitor
@@ -294,7 +294,7 @@ export default class PathLinkerPlugin extends Plugin {
 
         this.originalGetEmbedCreater = this.app.embedRegistry.getEmbedCreator;
 
-        if(this.app.isMobile)
+        if(Platform.isMobile)
         this.app.embedRegistry.getEmbedCreator = (embedFile: TFile) => {
             const embedCreator = this.originalGetEmbedCreater.call(this.app.embedRegistry, embedFile);
 
