@@ -16,7 +16,7 @@ const externalGroupPrefix = "group:";
 const _externalPrefix = "PathLinker:";
 
 
-class FuzzyScriptSuggester extends FuzzySuggestModal<string>
+class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
 {
 	private plugin: PathLinkerPlugin;
 
@@ -30,7 +30,7 @@ class FuzzyScriptSuggester extends FuzzySuggestModal<string>
 
         if (Platform.isMobile)
         {
-            let result = await Filesystem.readdir({ path: fullPath });
+            const result = await Filesystem.readdir({ path: fullPath });
             return result.files.map((file) => file.type === "directory" ? file.name + "/" : file.name); 
         }
 
@@ -84,7 +84,7 @@ class FuzzyScriptSuggester extends FuzzySuggestModal<string>
         if (this.group !== null && !item.endsWith("/"))
         {
             // Insert a link to the selected file
-            let editor = this.plugin.app.workspace.activeEditor?.editor;
+            const editor = this.plugin.app.workspace.activeEditor?.editor;
             if (editor) {
                 editor.replaceSelection("![[group:" + this.group + "/" + this.path + item + "]]");
             }
@@ -93,10 +93,10 @@ class FuzzyScriptSuggester extends FuzzySuggestModal<string>
 
 
 
-        let groupName = this.group === null ? item : this.group;
+        const groupName = this.group === null ? item : this.group;
         
-        let group = this.plugin.settings.groups.find((group) => group.name === groupName);
-        let devicePath = group?.devices.find((device) => device.id === this.plugin.uuid)?.basePath;
+        const group = this.plugin.settings.groups.find((group) => group.name === groupName);
+        const devicePath = group?.devices.find((device) => device.id === this.plugin.uuid)?.basePath;
         if (devicePath === undefined)
         {
             // Display error with toast
@@ -108,23 +108,23 @@ class FuzzyScriptSuggester extends FuzzySuggestModal<string>
         if (this.group !== null)
             newPath = this.plugin.joinPaths([this.path, item]);
 
-        let fullPath = this.plugin.joinPaths([devicePath, newPath]);
+        const fullPath = this.plugin.joinPaths([devicePath, newPath]);
 
         // If the path starts with /, remove it (this occurs on mobile)
         if (newPath.startsWith("/"))
             newPath = newPath.slice(1);
 
-        let newItems = await FuzzyScriptSuggester.getItemsAsync(fullPath);
+        const newItems = await FuzzyGroupFileSuggester.getItemsAsync(fullPath);
 		
         if (this.group === null)
         {
-            new FuzzyScriptSuggester(this.plugin, item, "", newItems).open();
+            new FuzzyGroupFileSuggester(this.plugin, item, "", newItems).open();
             return;
         }
 
 
         // Join the current path with the item
-        new FuzzyScriptSuggester(this.plugin, this.group, newPath, newItems).open();
+        new FuzzyGroupFileSuggester(this.plugin, this.group, newPath, newItems).open();
         return;
 
 
@@ -332,7 +332,7 @@ export default class PathLinkerPlugin extends Plugin {
 			id: "select-group-file",
 			name: "Select group file",
 			callback: () => {
-				new FuzzyScriptSuggester(this).open();
+				new FuzzyGroupFileSuggester(this).open();
 			},
 		})
 
