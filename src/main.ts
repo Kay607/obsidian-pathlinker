@@ -1,4 +1,4 @@
-import { FileStats, Platform, Plugin, TFile } from "obsidian";
+import { FileStats, FuzzySuggestModal, Notice, Platform, Plugin, TFile } from "obsidian";
 import { OpenPDFData } from 'path-linker';
 
 import { PathLinkerSettings, PathLinkerPluginSettingTab, DEFAULT_SETTINGS } from "./settings";
@@ -14,6 +14,124 @@ const externalGroupPrefix = "group:";
 // This should not be modified
 // This is never used by users and is only ever used internally in the plugin
 const _externalPrefix = "PathLinker:";
+
+
+class FuzzyScriptSuggester extends FuzzySuggestModal<string>
+{
+	private plugin: PathLinkerPlugin;
+
+    group: string|null = null;
+    path: string = "";
+    items: string[] = [];
+
+    static async getItemsAsync(fullPath: string): Promise<string[]> {
+
+        // Get all files in the folder and add a '/' if it's a directory
+
+        if (Platform.isMobile)
+        {
+            let result = await Filesystem.readdir({ path: fullPath });
+            return result.files.map((file) => file.type === "directory" ? file.name + "/" : file.name); 
+        }
+
+        // Desktop
+        const files = fs.readdirSync(fullPath, { withFileTypes: true });
+        return files.map((file) => file.isDirectory() ? file.name + "/" : file.name);
+    }
+
+	constructor(plugin: PathLinkerPlugin, group: string|null = null, path: string = "", items: string[] = [])
+	{
+		super(plugin.app);
+		this.plugin = plugin;
+
+        this.group = group;
+        this.path = path;
+
+        this.items = items;
+
+        if (group === null)
+		    this.setPlaceholder("Select a group");
+        else
+            this.setPlaceholder("Select a path");
+	}
+
+	getItems(): string[] {
+
+        if (this.group === null)
+        {
+            // Get all groups
+            return this.plugin.settings.groups.map((group) => group.name);
+        }
+
+        // Sort directories before files
+        this.items.sort((a, b) => {
+            const aIsDir = a.endsWith("/");
+            const bIsDir = b.endsWith("/");
+        
+            if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+            return a.localeCompare(b);
+        }); 
+
+        // Return the items previously read
+		return this.items;
+	}
+
+	getItemText(item: string): string {
+		return item;
+	}
+	async onChooseItem(item: string): Promise<void> {
+
+        if (this.group !== null && !item.endsWith("/"))
+        {
+            // Insert a link to the selected file
+            let editor = this.plugin.app.workspace.activeEditor?.editor;
+            if (editor) {
+                editor.replaceSelection("![[group:" + this.group + "/" + this.path + item + "]]");
+            }
+            return;
+        }
+
+
+
+        let groupName = this.group === null ? item : this.group;
+        
+        let group = this.plugin.settings.groups.find((group) => group.name === groupName);
+        let devicePath = group?.devices.find((device) => device.id === this.plugin.uuid)?.basePath;
+        if (devicePath === undefined)
+        {
+            // Display error with toast
+            new Notice(`You cannot use the group ${groupName} as this device does not have a base path selected.`,3000);
+            return;
+        }
+
+        let newPath = "";
+        if (this.group !== null)
+            newPath = this.plugin.joinPaths([this.path, item]);
+
+        let fullPath = this.plugin.joinPaths([devicePath, newPath]);
+
+        // If the path starts with /, remove it (this occurs on mobile)
+        if (newPath.startsWith("/"))
+            newPath = newPath.slice(1);
+
+        let newItems = await FuzzyScriptSuggester.getItemsAsync(fullPath);
+		
+        if (this.group === null)
+        {
+            new FuzzyScriptSuggester(this.plugin, item, "", newItems).open();
+            return;
+        }
+
+
+        // Join the current path with the item
+        new FuzzyScriptSuggester(this.plugin, this.group, newPath, newItems).open();
+        return;
+
+
+        
+	}
+	
+}
 
 
 export default class PathLinkerPlugin extends Plugin {
@@ -78,7 +196,7 @@ export default class PathLinkerPlugin extends Plugin {
         if (Platform.isMobile) {
             return paths.join('/').replace(/\/+/g, '/'); // Remove any extra slashes
         } else {
-            return path.join(...paths);
+            return path.join(...paths).replace(/\\/g, '/');
         }
     }
 
@@ -208,6 +326,17 @@ export default class PathLinkerPlugin extends Plugin {
         // Get a UUID for the device
         // This is used to identify the device to get the path from the group
         this.uuid = this.getUUID();
+
+
+        this.addCommand({
+			id: "select-group-file",
+			name: "Select group file",
+			callback: () => {
+				new FuzzyScriptSuggester(this).open();
+			},
+		})
+
+
         
         // Text files such as .md and .canvas use a different system to reading files than binary (pdf, mp3)
         // Binary files work automatically without editing the reading methods
