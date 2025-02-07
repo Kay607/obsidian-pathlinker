@@ -48,6 +48,19 @@ The group name must come directly after `group:` with a `/` after it
 
 ![image](https://github.com/user-attachments/assets/2780a476-a4d0-4a59-997f-34b6410be9d5)
 
+
+## Operating Systems
+- [x] Windows
+- [x] Linux
+- [x] MacOS
+
+- [x] Android
+- [ ] iOS (Untested)
+
+Android and iOS are missing this "Select folder" button in the settings due to operating system limitations
+![image](https://github.com/user-attachments/assets/3ce2ec94-da18-4cfd-add4-7ed90bd57d0b)
+
+
 ## Installation
 
 You can manually install by adding `Kay607/obsidian-pathlinker` to [BRAT](https://github.com/TfTHacker/obsidian42-brat)
