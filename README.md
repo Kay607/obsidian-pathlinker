@@ -1,6 +1,5 @@
-<!--
-![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22{{ pluginID }}%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)
--->
+![GitHub Release](https://img.shields.io/github/v/release/Kay607/obsidian-pathlinker)
+![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22pathlinker%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)
 
 # External File Linker
 Allows you to link to external files in obsidian to embed them
@@ -62,6 +61,8 @@ Android and iOS are missing this "Select folder" button in the settings due to o
 
 
 ## Installation
+
+Install from the Obsidian `Comunity Plugins` tab or [External File Linker](https://obsidian.md/plugins?id=pathlinker)
 
 You can manually install by adding `Kay607/obsidian-pathlinker` to [BRAT](https://github.com/TfTHacker/obsidian42-brat)
 
