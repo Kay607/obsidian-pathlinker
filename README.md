@@ -54,10 +54,7 @@ The group name must come directly after `group:` with a `/` after it
 - [x] MacOS
 
 - [x] Android
-- [ ] iOS (Untested)
-
-Android and iOS are missing this "Select folder" button in the settings due to operating system limitations
-![image](https://github.com/user-attachments/assets/3ce2ec94-da18-4cfd-add4-7ed90bd57d0b)
+- [x] iOS (Untested)
 
 
 ## Installation

@@ -22,6 +22,30 @@ export const DEFAULT_SETTINGS: PathLinkerSettings = {
 	groups: [],
 };
 
+async function chooseFolder(): Promise<string|null> {
+	let selectedPath = null;
+
+	if (Platform.isMobile) {
+		try {
+			const result = await (window as any).Capacitor.Plugins.Filesystem.choose();
+			return result.path;
+		} catch (e) {
+			if (e.message !== 'canceled') console.error(e);
+			return null;
+		}
+	} 
+
+	// Desktop
+	const electron = require('electron');
+	const result = await (electron as any).remote.dialog.showOpenDialog({
+		properties: ['openDirectory'],
+	});
+
+	if (result.canceled || result.filePaths.length === 0) return null;
+	return result.filePaths[0];
+}
+
+
 export class PathLinkerPluginSettingTab extends PluginSettingTab {
 	plugin: PathLinkerPlugin;
 
@@ -132,23 +156,15 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 					});
 				});
 
-				if (!Platform.isMobile)
 				deviceSetting.addButton((button) =>
 					button
 					.setIcon('folder')
 					.setTooltip('Select folder')
 					.onClick(async () => {
 			
-						const electron = require('electron');
-						const result = await (electron as any).remote.dialog.showOpenDialog({
-							properties: ['openDirectory'], // Only allow folder selection
-						});
+						const selectedFolder = await chooseFolder();
 
-
-						if (result.canceled || result.filePaths.length === 0)
-							return;
-
-						const selectedFolder = result.filePaths[0];
+						if (!selectedFolder) return;
 
 						// Update the device base path
 						device.basePath = selectedFolder;
