@@ -6,10 +6,12 @@ import { PathLinkerSettings, PathLinkerPluginSettingTab, DEFAULT_SETTINGS } from
 import * as path from "path";
 import * as fs from "fs";
 
+import { getHideTestPlugin, getNonEmbedReadModeHandler } from './nonembed';
+
 import { Filesystem } from "@capacitor/filesystem";
 
-const externalPrefix = "external:";
-const externalGroupPrefix = "group:";
+export const externalPrefix = "external:";
+export const externalGroupPrefix = "group:";
 
 // This should not be modified
 // This is never used by users and is only ever used internally in the plugin
@@ -335,6 +337,11 @@ export default class PathLinkerPlugin extends Plugin {
 				new FuzzyGroupFileSuggester(this).open();
 			},
 		})
+
+
+        // Handle non embedding wikilinks
+        this.registerMarkdownPostProcessor(getNonEmbedReadModeHandler(this));
+        this.registerEditorExtension(getHideTestPlugin(this));
 
 
         

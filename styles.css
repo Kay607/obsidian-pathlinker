@@ -3,3 +3,8 @@
 .hiddenDevice {
     display: none;
 }
+
+.nonembed {
+    text-decoration: underline !important;
+    cursor: pointer;
+}
