@@ -140,7 +140,7 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 					.onClick(async () => {
 			
 						const electron = require('electron');
-						const result = await electron.remote.dialog.showOpenDialog({
+						const result = await (electron as any).remote.dialog.showOpenDialog({
 							properties: ['openDirectory'], // Only allow folder selection
 						});
 

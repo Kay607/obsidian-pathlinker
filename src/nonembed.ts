@@ -5,6 +5,8 @@ import { Filesystem } from "@capacitor/filesystem";
 import { Platform } from "obsidian";
 import * as fs from "fs";
 
+import { shell } from "electron";
+
 
 
 class HideTestWidget extends WidgetType {
@@ -167,8 +169,12 @@ function generateOnClick(plugin: PathLinkerPlugin, linkpath: string) {
 		
 		const filePath = getFilePathFromLinkPath(plugin, linkpath);
 
+		if (filePath === null) {
+			return;
+		}
+
 		// Open the file with its native app rather than obisidan
-		this.app.openWithDefaultApp(filePath);
+		openInDefaultApp(plugin, filePath);
 	};
 }
 
@@ -254,3 +260,21 @@ function getFilePathFromLinkPath(plugin: PathLinkerPlugin, linkpath: string): st
 	return fileName;
 }
 
+
+function openInDefaultApp(plugin: PathLinkerPlugin, filePath: string)
+{
+	// If the path is relative, use the vault as the working directory
+	filePath = plugin.useVaultAsWorkingDirectory(filePath);
+
+	if (Platform.isMobile)
+	{
+		if (plugin.isLocalFile(filePath))
+			plugin.app.vault.adapter.fs.open(filePath);
+		else
+			window.open(filePath);
+	}
+	else
+	{
+		shell.openPath(filePath);
+	}
+}

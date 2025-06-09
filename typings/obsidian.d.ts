@@ -6,8 +6,10 @@ declare module 'obsidian' {
 		viewRegistry: ViewRegistry
 	}
 
+
 	interface DataAdapter {
-		basePath: string
+		basePath: string,
+		fs?: any
 	}
 
 	interface TFile {
