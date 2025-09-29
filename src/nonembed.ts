@@ -6,6 +6,7 @@ import { Platform } from "obsidian";
 import * as fs from "fs";
 
 import { shell } from "electron";
+import { isLocalFile } from "./pathUtils";
 
 
 
@@ -182,7 +183,7 @@ function generateOnClick(plugin: PathLinkerPlugin, linkpath: string) {
 async function isNonExistent(plugin: PathLinkerPlugin, linkPath: string): Promise<boolean> {
 
 	const externalStripped = linkPath.replace(externalPrefix, "")
-	if (!plugin.isLocalFile(externalStripped)) {
+	if (!isLocalFile(externalStripped)) {
 		return false;
 	}
 
@@ -268,7 +269,7 @@ function openInDefaultApp(plugin: PathLinkerPlugin, filePath: string)
 
 	if (Platform.isMobile)
 	{
-		if (plugin.isLocalFile(filePath))
+		if (isLocalFile(filePath))
 			plugin.app.vault.adapter.fs.open(filePath);
 		else
 			window.open(filePath);

@@ -3,12 +3,12 @@ import { OpenPDFData } from 'path-linker';
 
 import { PathLinkerSettings, PathLinkerPluginSettingTab, DEFAULT_SETTINGS } from "./settings";
 
-import * as path from "path";
 import * as fs from "fs";
 
 import { getHideTestPlugin, getNonEmbedReadModeHandler } from './nonembed';
 
 import { Filesystem } from "@capacitor/filesystem";
+import { basename, extname, isAbsolutePath, isLocalFile, joinPaths } from "./pathUtils";
 
 export const externalPrefix = "external:";
 export const externalGroupPrefix = "group:";
@@ -108,9 +108,9 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
 
         let newPath = "";
         if (this.group !== null)
-            newPath = this.plugin.joinPaths([this.path, item]);
+            newPath = joinPaths([this.path, item]);
 
-        const fullPath = this.plugin.joinPaths([devicePath, newPath]);
+        const fullPath = joinPaths([devicePath, newPath]);
 
         // If the path starts with /, remove it (this occurs on mobile)
         if (newPath.startsWith("/"))
@@ -189,62 +189,22 @@ export default class PathLinkerPlugin extends Plugin {
         return deviceId;
     }
 
-    isLocalFile(filePath: string) : boolean
-    {
-        return !(filePath.startsWith("http://") || filePath.startsWith("https://"));
-    }
-
-    joinPaths(paths: string[]) {
-        if (Platform.isMobile) {
-            return paths.join('/').replace(/\/+/g, '/'); // Remove any extra slashes
-        } else {
-            return path.join(...paths).replace(/\\/g, '/');
-        }
-    }
-
-    isAbsolutePath(filePath: string) {
-        if (Platform.isMobile) {
-            return filePath.startsWith('/');
-        } else {
-            return path.isAbsolute(filePath);
-        }
-    }
 
     // If the path is relative, use the vault as the working directory
     // Otherwise, use the path without modification
     useVaultAsWorkingDirectory(filePath: string) : string
     { 
-        if (this.isAbsolutePath(filePath) || !this.isLocalFile(filePath))
+        if (isAbsolutePath(filePath) || !isLocalFile(filePath))
         {
             return filePath;
         }
         else
         {
-            return this.joinPaths([this.app.vault.adapter.basePath, filePath]);
+            return joinPaths([this.app.vault.adapter.basePath, filePath]);
         }
     }
 
-    basename(filePath: string) : string {
-        if (Platform.isMobile) {
-            const segments = filePath.split('/');
-            return segments[segments.length - 1];
-        } else {
-            return path.basename(filePath, path.extname(filePath));
-        }
-    }
-
-    extname(filePath: string) : string
-    {
-        if (Platform.isMobile)
-        {
-            const lastDotIndex = filePath.lastIndexOf('.');
-            return lastDotIndex !== -1 ? filePath.slice(lastDotIndex) : '';
-        }
-        else
-        {
-            return path.extname(filePath);
-        }
-    }
+    
 
 
     // Creates a TFile object for a file that doesn't exist
@@ -283,12 +243,12 @@ export default class PathLinkerPlugin extends Plugin {
         // Only do the check on desktop as there is no synchronous file system on mobile
         if (!Platform.isMobile)
         {
-            if (this.isLocalFile(fileName) && !fs.existsSync(this.useVaultAsWorkingDirectory(fileName)))
+            if (isLocalFile(fileName) && !fs.existsSync(this.useVaultAsWorkingDirectory(fileName)))
                 return null;
         }
 
-        const basename = this.basename(fileName);
-        const extension = this.extname(fileName).slice(1);
+        const fileBaseName = basename(fileName);
+        const extension = extname(fileName).slice(1);
 
         // None of the following is used so all values are set to 0
         const fileStats: FileStats = {
@@ -301,8 +261,8 @@ export default class PathLinkerPlugin extends Plugin {
         const file: TFile = {
             path: _externalPrefix + fileName,	// Path to the file (test.md)
             name: fileName,       				// File name with extension (test.md)
-            extension: extension,     			// File extension (md)
-            basename: basename,      			// Base name of the file (test)
+            extension: extension.toLowerCase(),     			// File extension (md)
+            basename: fileBaseName,      			// Base name of the file (test)
             parent: null, 						// Root of the vault (not relevant here)
             stat: fileStats,     				// File stats (unused but required)
             vault: this.app.vault, 				// Reference to the vault object
@@ -402,7 +362,7 @@ export default class PathLinkerPlugin extends Plugin {
                 }
 
                 // Only add the prefix for local files, http/https files should not have it
-                const isLocal = this.isLocalFile(stripped);
+                const isLocal = isLocalFile(stripped);
                 const prefix = isLocal ? Platform.resourcePathPrefix : "";
 
                 return prefix + stripped;
@@ -501,7 +461,7 @@ export default class PathLinkerPlugin extends Plugin {
                         pdfViewer.open = async (openData: OpenPDFData) => {
 
                             // Check if the file is a local file
-                            const isLocal = this.isLocalFile(openData.url);
+                            const isLocal = isLocalFile(openData.url);
                             if (isLocal)
                             {
                                 // Get the file as a base64 string with Capacitor
