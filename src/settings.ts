@@ -1,5 +1,5 @@
 import PathLinkerPlugin from "./main";
-import { App, PluginSettingTab, Setting, TextComponent, Platform } from "obsidian";
+import { App, PluginSettingTab, Setting, TextComponent, Platform, Notice } from "obsidian";
 
 
 interface Device {
@@ -26,6 +26,10 @@ async function chooseFolder(): Promise<string|null> {
 	let selectedPath = null;
 
 	if (Platform.isMobile) {
+		if (Platform.isIosApp) {
+			// iOS doesn't support folder picker
+			return null;
+		}
 		try {
 			const result = await (window as any).Capacitor.Plugins.Filesystem.choose();
 			return result.path;
@@ -33,7 +37,7 @@ async function chooseFolder(): Promise<string|null> {
 			if (e.message !== 'canceled') console.error(e);
 			return null;
 		}
-	} 
+	}
 
 	// Desktop
 	const electron = require('electron');
@@ -161,7 +165,14 @@ export class PathLinkerPluginSettingTab extends PluginSettingTab {
 					.setIcon('folder')
 					.setTooltip('Select folder')
 					.onClick(async () => {
-			
+						if (Platform.isIosApp) {
+							new Notice(
+								'Folder picker is not available on iOS. Please enter the base path, relative to your vault.',
+								8000
+							);
+							return;
+						}
+
 						const selectedFolder = await chooseFolder();
 
 						if (!selectedFolder) return;

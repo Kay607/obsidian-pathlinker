@@ -110,7 +110,12 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
         if (this.group !== null)
             newPath = joinPaths([this.path, item]);
 
-        const fullPath = joinPaths([devicePath, newPath]);
+        let fullPath = joinPaths([devicePath, newPath]);
+
+        // Resolve path segments for iOS compatibility
+        if (Platform.isIosApp) {
+            fullPath = this.plugin.resolvePathSegments(fullPath);
+        }
 
         // If the path starts with /, remove it (this occurs on mobile)
         if (newPath.startsWith("/"))
@@ -189,17 +194,50 @@ export default class PathLinkerPlugin extends Plugin {
         return deviceId;
     }
 
+    // Resolve .. and . segments in paths for iOS
+    resolvePathSegments(filePath: string): string {
+        const parts = filePath.split('/');
+        const result: string[] = [];
+
+        for (const part of parts) {
+            if (part === '..' && result.length > 0 && result[result.length - 1] !== '..') {
+                result.pop();
+            } else if (part !== '.' && part !== '') {
+                result.push(part);
+            }
+        }
+
+        return (filePath.startsWith('/') ? '/' : '') + result.join('/');
+    }
+
 
     // If the path is relative, use the vault as the working directory
     // Otherwise, use the path without modification
     useVaultAsWorkingDirectory(filePath: string) : string
-    { 
+    {
         if (isAbsolutePath(filePath) || !isLocalFile(filePath))
         {
             return filePath;
         }
         else
         {
+            // On iOS, basePath is relative (vault name) rather than absolute
+            if (Platform.isIosApp) {
+                if (filePath.startsWith('../')) {
+                    const joined = joinPaths([this.app.vault.adapter.basePath, filePath]);
+                    return this.resolvePathSegments(joined);
+                }
+
+                // Obsidian normalizes ../ to . in some cases (e.g., "../Folder" becomes ".Folder")
+                if (filePath.match(/^\.[^\/]/)) {
+                    return filePath.substring(1);
+                }
+
+                const pathWithoutDot = filePath.replace(/^\.\//, '');
+                const joined = joinPaths([this.app.vault.adapter.basePath, pathWithoutDot]);
+                return this.resolvePathSegments(joined);
+            }
+
             return joinPaths([this.app.vault.adapter.basePath, filePath]);
         }
     }
@@ -428,7 +466,9 @@ export default class PathLinkerPlugin extends Plugin {
                                 
                                 // Remove # and everything after it
                                 filePath = filePath.split("#")[0];
-                                
+
+                                filePath = decodeURIComponent(filePath);
+
                                 // Read the file as a base64 string with Capacitor
                                 const fileBase64 = (await Filesystem.readFile({ path: filePath })).data;
 
