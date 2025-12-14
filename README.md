@@ -54,7 +54,7 @@ The group name must come directly after `group:` with a `/` after it
 - [x] MacOS
 
 - [x] Android
-- [x] iOS (Untested)
+- [x] iOS
 
 
 ## Installation
