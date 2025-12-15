@@ -297,13 +297,27 @@ export default class PathLinkerPlugin extends Plugin {
 
         this.addCommand({
 			id: "select-group-file",
-			name: "Select group file",
+			name: "Embed group file",
 			callback: () => {
 				new FuzzyGroupFileSuggester(this, (group, path) => {
                     // Insert a link to the selected file
                     const editor = this.app.workspace.activeEditor?.editor;
                     if (editor) {
                         editor.replaceSelection("![[group:" + group + "/" + path + "]]");
+                    }
+                }).open();
+			},
+		})
+
+        this.addCommand({
+			id: "select-group-file-link",
+			name: "Link to group file",
+			callback: () => {
+				new FuzzyGroupFileSuggester(this, (group, path) => {
+                    // Insert a link to the selected file
+                    const editor = this.app.workspace.activeEditor?.editor;
+                    if (editor) {
+                        editor.replaceSelection("[[group:" + group + "/" + path + "]]");
                     }
                 }).open();
 			},
