@@ -112,12 +112,7 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
 
         // This is the absolute path used only for finding files
         // This will not be passed on, as it's better to keep a relative path for device compatibility
-        let fullPath = joinPaths(devicePath, newPath);
-
-        // Resolve path segments for iOS compatibility
-        if (Platform.isIosApp) {
-            fullPath = resolvePathSegments(fullPath);
-        }
+        const fullPath = joinPaths(devicePath, newPath);
 
         // If the path starts with /, remove it (this occurs on mobile)
         if (newPath.startsWith("/"))
@@ -209,29 +204,9 @@ export default class PathLinkerPlugin extends Plugin {
         }
         else
         {
-            // On iOS, basePath is relative (vault name) rather than absolute
-            if (Platform.isIosApp) {
-                if (filePath.startsWith('../')) {
-                    const joined = joinPaths(this.app.vault.adapter.basePath, filePath);
-                    return resolvePathSegments(joined);
-                }
-
-                // Obsidian normalizes ../ to . in some cases (e.g., "../Folder" becomes ".Folder")
-                if (filePath.match(/^\.[^\/]/)) {
-                    return filePath.substring(1);
-                }
-
-                const pathWithoutDot = filePath.replace(/^\.\//, '');
-                const joined = joinPaths(this.app.vault.adapter.basePath, pathWithoutDot);
-                return resolvePathSegments(joined);
-            }
-
             return joinPaths(this.app.vault.adapter.basePath, filePath);
         }
     }
-
-    
-
 
     // Creates a TFile object for a file that doesn't exist
     // This is used for external links so that obisidan will try to read the file
@@ -345,34 +320,35 @@ export default class PathLinkerPlugin extends Plugin {
 
             // If the path starts with _externalPrefix, it's an external file
             // This prefix is prepended by the plugin
-            if (file.path.startsWith(_externalPrefix)) {
-                // Return a custom file object for external files
-
-                const filePath = this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, ""));
-
-                if (Platform.isMobile)
-                {
-                    
-                    // Read the file with Capacitor
-                    const result = await Filesystem.readFile({ path: filePath });
-
-                    if (result.data instanceof Blob) {
-                        const base64Data = await result.data.text();
-            
-                        return base64Data;
-                    } else {
-                        const decodedContent = atob(result.data);
-                        return decodedContent;
-                    }
-                }
-                else
-                {	
-                    return fs.readFileSync(filePath, 'utf8');
-                }
-            }
 
             // For normal embedded files, allow the original method to handle them
-            return this.oldCachedRead.call(this.app.vault, file);
+            if (!file.path.startsWith(_externalPrefix))
+                return this.oldCachedRead.call(this.app.vault, file);
+
+
+            // Return a custom file object for external files
+
+            const filePath = this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, ""));
+
+            if (Platform.isMobile)
+            {
+                
+                // Read the file with Capacitor
+                const result = await Filesystem.readFile({ path: filePath });
+
+                if (result.data instanceof Blob) {
+                    const base64Data = await result.data.text();
+        
+                    return base64Data;
+                } else {
+                    const decodedContent = atob(result.data);
+                    return decodedContent;
+                }
+            }
+            else
+            {	
+                return fs.readFileSync(filePath, 'utf8');
+            }
         };
         
 

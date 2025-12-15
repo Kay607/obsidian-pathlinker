@@ -7,31 +7,69 @@ export function isLocalFile(filePath: string) : boolean
 }
 
 
-// Resolve .. and . segments in paths for iOS
-export function resolvePathSegments(filePath: string): string {
-        const parts = filePath.split('/');
-        const result: string[] = [];
 
-        for (const part of parts) {
-            if (part === '..' && result.length > 0 && result[result.length - 1] !== '..') {
-                result.pop();
-            } else if (part !== '.' && part !== '') {
+// Remove redundant .. and . in paths
+/*
+Examples:
+/usr/bin -> /usr/bin
+/usr/../usr/bin -> /usr/bin
+../a/b/../c -> ../a/c
+../test -> ../test
+./../ -> ../
+.././ -> ../
+
+./test -> ./test (test on iOS)
+*/
+export function resolvePathSegments(filePath: string): string {
+    const parts = filePath.split('/');
+    const result: string[] = [];
+
+    for (let i = 0; i < parts.length; i++)
+    {
+        const part = parts[i];
+        if (i == 0)
+        {
+            result.push(part);
+            continue;
+        }
+
+        if (part === '..' && result.length > 0 && result[result.length - 1] !== '..')
+        {
+            result.pop();
+
+            if (result.length === 0)
+            {
                 result.push(part);
             }
         }
-
-        return (filePath.startsWith('/') ? '/' : '') + result.join('/');
+        else if (part !== '.' && part !== '')
+        {
+            result.push(part);
+        }
     }
 
+    if (Platform.isIosApp && result.length > 0 && result[0] == '.')
+    {
+        result.shift();
+    }
+
+    return (filePath.startsWith('/') ? '/' : '') + result.join('/');
+}
+
 export function joinPaths(...paths: string[]) {
+    let newPath;
     if (Platform.isMobile) {
-        return paths
+        newPath = paths
             .join('/')
             .replace(/\/+/g, '/')
             .replace(/\/$/, '');
     } else {
-        return path.join(...paths).replace(/\\/g, '/');
+        newPath = path.join(...paths).replace(/\\/g, '/');
     }
+
+    newPath = resolvePathSegments(newPath);
+
+    return newPath;
 }
 
 
