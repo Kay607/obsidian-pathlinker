@@ -27,7 +27,7 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
     items: string[] = [];
     callback: (group: string, item: string) => void;
 
-    static async getItemsAsync(fullPath: string): Promise<string[]> {
+    async getItemsAsync(fullPath: string): Promise<string[]> {
 
         // Get all files in the folder and add a '/' if it's a directory
 
@@ -70,6 +70,9 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
 
         // Sort directories before files
         this.items.sort((a, b) => {
+            if (a == '..') return -1;
+            if (b == '..') return 1;
+
             const aIsDir = a.endsWith("/");
             const bIsDir = b.endsWith("/");
         
@@ -86,7 +89,7 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
 	}
 	async onChooseItem(item: string): Promise<void> {
 
-        if (this.group !== null && !item.endsWith("/"))
+        if (this.group !== null && !item.endsWith("/") && item !== "..")
         {
             // A group and file have been selected, return this by callback
             this.callback(this.group, joinPaths(this.path, item));
@@ -118,8 +121,9 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
         if (newPath.startsWith("/"))
             newPath = newPath.slice(1);
 
-        const newItems = await FuzzyGroupFileSuggester.getItemsAsync(fullPath);
-		
+        const newItems = await this.getItemsAsync(fullPath);
+        newItems.unshift('..');
+
         if (this.group === null)
         {
             new FuzzyGroupFileSuggester(this.plugin, this.callback, item, "", newItems).open();
