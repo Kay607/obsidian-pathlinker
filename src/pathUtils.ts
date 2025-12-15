@@ -6,13 +6,34 @@ export function isLocalFile(filePath: string) : boolean
     return !(filePath.startsWith("http://") || filePath.startsWith("https://"));
 }
 
-export function joinPaths(paths: string[]) {
+
+// Resolve .. and . segments in paths for iOS
+export function resolvePathSegments(filePath: string): string {
+        const parts = filePath.split('/');
+        const result: string[] = [];
+
+        for (const part of parts) {
+            if (part === '..' && result.length > 0 && result[result.length - 1] !== '..') {
+                result.pop();
+            } else if (part !== '.' && part !== '') {
+                result.push(part);
+            }
+        }
+
+        return (filePath.startsWith('/') ? '/' : '') + result.join('/');
+    }
+
+export function joinPaths(...paths: string[]) {
     if (Platform.isMobile) {
-        return paths.join('/').replace(/\/+/g, '/'); // Remove any extra slashes
+        return paths
+            .join('/')
+            .replace(/\/+/g, '/')
+            .replace(/\/$/, '');
     } else {
         return path.join(...paths).replace(/\\/g, '/');
     }
 }
+
 
 export function isAbsolutePath(filePath: string) {
     if (Platform.isMobile) {

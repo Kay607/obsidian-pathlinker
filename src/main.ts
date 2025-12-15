@@ -8,7 +8,7 @@ import * as fs from "fs";
 import { getHideTestPlugin, getNonEmbedReadModeHandler } from './nonembed';
 
 import { Filesystem } from "@capacitor/filesystem";
-import { basename, extname, isAbsolutePath, isLocalFile, joinPaths } from "./pathUtils";
+import { basename, extname, isAbsolutePath, isLocalFile, joinPaths, resolvePathSegments } from "./pathUtils";
 
 export const externalPrefix = "external:";
 export const externalGroupPrefix = "group:";
@@ -25,6 +25,7 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
     group: string|null = null;
     path: string = "";
     items: string[] = [];
+    callback: (group: string, item: string) => void;
 
     static async getItemsAsync(fullPath: string): Promise<string[]> {
 
@@ -41,12 +42,14 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
         return files.map((file) => file.isDirectory() ? file.name + "/" : file.name);
     }
 
-	constructor(plugin: PathLinkerPlugin, group: string|null = null, path: string = "", items: string[] = [])
+	constructor(plugin: PathLinkerPlugin, callback: (group: string, item: string) => void, group: string|null = null, path: string = "", items: string[] = [])
 	{
 		super(plugin.app);
 		this.plugin = plugin;
+        this.callback = callback;
 
         this.group = group;
+
         this.path = path;
 
         this.items = items;
@@ -85,11 +88,8 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
 
         if (this.group !== null && !item.endsWith("/"))
         {
-            // Insert a link to the selected file
-            const editor = this.plugin.app.workspace.activeEditor?.editor;
-            if (editor) {
-                editor.replaceSelection("![[group:" + this.group + "/" + this.path + item + "]]");
-            }
+            // A group and file have been selected, return this by callback
+            this.callback(this.group, joinPaths(this.path, item));
             return;
         }
 
@@ -108,13 +108,15 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
 
         let newPath = "";
         if (this.group !== null)
-            newPath = joinPaths([this.path, item]);
+            newPath = joinPaths(this.path, item);
 
-        let fullPath = joinPaths([devicePath, newPath]);
+        // This is the absolute path used only for finding files
+        // This will not be passed on, as it's better to keep a relative path for device compatibility
+        let fullPath = joinPaths(devicePath, newPath);
 
         // Resolve path segments for iOS compatibility
         if (Platform.isIosApp) {
-            fullPath = this.plugin.resolvePathSegments(fullPath);
+            fullPath = resolvePathSegments(fullPath);
         }
 
         // If the path starts with /, remove it (this occurs on mobile)
@@ -125,13 +127,13 @@ class FuzzyGroupFileSuggester extends FuzzySuggestModal<string>
 		
         if (this.group === null)
         {
-            new FuzzyGroupFileSuggester(this.plugin, item, "", newItems).open();
+            new FuzzyGroupFileSuggester(this.plugin, this.callback, item, "", newItems).open();
             return;
         }
 
 
         // Join the current path with the item
-        new FuzzyGroupFileSuggester(this.plugin, this.group, newPath, newItems).open();
+        new FuzzyGroupFileSuggester(this.plugin, this.callback, this.group, newPath, newItems).open();
         return;
 
 
@@ -194,21 +196,7 @@ export default class PathLinkerPlugin extends Plugin {
         return deviceId;
     }
 
-    // Resolve .. and . segments in paths for iOS
-    resolvePathSegments(filePath: string): string {
-        const parts = filePath.split('/');
-        const result: string[] = [];
-
-        for (const part of parts) {
-            if (part === '..' && result.length > 0 && result[result.length - 1] !== '..') {
-                result.pop();
-            } else if (part !== '.' && part !== '') {
-                result.push(part);
-            }
-        }
-
-        return (filePath.startsWith('/') ? '/' : '') + result.join('/');
-    }
+    
 
 
     // If the path is relative, use the vault as the working directory
@@ -224,8 +212,8 @@ export default class PathLinkerPlugin extends Plugin {
             // On iOS, basePath is relative (vault name) rather than absolute
             if (Platform.isIosApp) {
                 if (filePath.startsWith('../')) {
-                    const joined = joinPaths([this.app.vault.adapter.basePath, filePath]);
-                    return this.resolvePathSegments(joined);
+                    const joined = joinPaths(this.app.vault.adapter.basePath, filePath);
+                    return resolvePathSegments(joined);
                 }
 
                 // Obsidian normalizes ../ to . in some cases (e.g., "../Folder" becomes ".Folder")
@@ -234,11 +222,11 @@ export default class PathLinkerPlugin extends Plugin {
                 }
 
                 const pathWithoutDot = filePath.replace(/^\.\//, '');
-                const joined = joinPaths([this.app.vault.adapter.basePath, pathWithoutDot]);
-                return this.resolvePathSegments(joined);
+                const joined = joinPaths(this.app.vault.adapter.basePath, pathWithoutDot);
+                return resolvePathSegments(joined);
             }
 
-            return joinPaths([this.app.vault.adapter.basePath, filePath]);
+            return joinPaths(this.app.vault.adapter.basePath, filePath);
         }
     }
 
@@ -332,7 +320,13 @@ export default class PathLinkerPlugin extends Plugin {
 			id: "select-group-file",
 			name: "Select group file",
 			callback: () => {
-				new FuzzyGroupFileSuggester(this).open();
+				new FuzzyGroupFileSuggester(this, (group, path) => {
+                    // Insert a link to the selected file
+                    const editor = this.app.workspace.activeEditor?.editor;
+                    if (editor) {
+                        editor.replaceSelection("![[group:" + group + "/" + path + "]]");
+                    }
+                }).open();
 			},
 		})
 
