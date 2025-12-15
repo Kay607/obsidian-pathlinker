@@ -517,13 +517,15 @@ export default class PathLinkerPlugin extends Plugin {
         // This fixes cases where other plugins try to read the file but the vault path is prepended by Obsidian
         // Mostly for PDF++
         this.originalGetFullPath = (this.app.vault.adapter as any).getFullPath;
-        (this.app.vault.adapter as any).getFullPath = function (path: string) {
-            const fullPath = this.originalGetFullPath(path);
+
+        if (this.originalGetFullPath !== undefined)
+        (this.app.vault.adapter as any).getFullPath = (path: string) => {
+            const fullPath = this.originalGetFullPath.call(this.app.vault.adapter, path);
 
             // Check if path contains _externalPrefix
-            if (fullPath.toString().contains(_externalPrefix)) {
-                // Split and return everything after it
-                return fullPath.toString().split(_externalPrefix)[1];
+            if (fullPath.toString().includes(_externalPrefix)) {
+            // Split and return everything after it
+            return fullPath.toString().split(_externalPrefix)[1];
             }
 
             return fullPath;
@@ -538,6 +540,8 @@ export default class PathLinkerPlugin extends Plugin {
         this.app.vault.getResourcePath = this.originalGetResourcePath;
         this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
         this.app.embedRegistry.getEmbedCreator = this.originalGetEmbedCreater;
+
+        if (this.originalGetFullPath !== undefined)
         (this.app.vault.adapter as any).getFullPath = this.originalGetFullPath;
     }
 
