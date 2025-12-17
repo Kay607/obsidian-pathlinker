@@ -148,11 +148,6 @@ export default class PathLinkerPlugin extends Plugin {
     uuid: string;
 
     originalGetFirstLinkpathDest: (linkpath: string, sourcePath: string) => TFile | null;
-    oldCachedRead: (file: TFile) => Promise<string>;
-    originalGetResourcePath: (file: TFile) => string;
-
-    originalGetEmbedCreater: (embedFile: TFile) => (...embedData: any[]) => any;
-
     originalGetFullPath: (path: string) => string;
 
 
@@ -196,8 +191,6 @@ export default class PathLinkerPlugin extends Plugin {
         }
         return deviceId;
     }
-
-    
 
 
     // If the path is relative, use the vault as the working directory
@@ -328,77 +321,7 @@ export default class PathLinkerPlugin extends Plugin {
 
         // Handle non embedding wikilinks
         this.registerMarkdownPostProcessor(getNonEmbedReadModeHandler(this));
-        this.registerEditorExtension(getHideTestPlugin(this));
-
-
-        
-        // Text files such as .md and .canvas use a different system to reading files than binary (pdf, mp3)
-        // Binary files work automatically without editing the reading methods
-        // The cachedRead method is overridden for text files as these don't work otherwise
-        this.oldCachedRead = this.app.vault.cachedRead;
-        this.app.vault.cachedRead = async (file: TFile): Promise<string> => {
-
-            // If the path starts with _externalPrefix, it's an external file
-            // This prefix is prepended by the plugin
-
-            // For normal embedded files, allow the original method to handle them
-            if (!file.path.startsWith(_externalPrefix))
-                return this.oldCachedRead.call(this.app.vault, file);
-
-
-            // Return a custom file object for external files
-
-            const filePath = this.useVaultAsWorkingDirectory(file.path.replace(_externalPrefix, ""));
-
-            if (Platform.isMobile)
-            {
-                
-                // Read the file with Capacitor
-                const result = await Filesystem.readFile({ path: filePath });
-
-                if (result.data instanceof Blob) {
-                    const base64Data = await result.data.text();
-        
-                    return base64Data;
-                } else {
-                    const decodedContent = atob(result.data);
-                    return decodedContent;
-                }
-            }
-            else
-            {	
-                return fs.readFileSync(filePath, 'utf8');
-            }
-        };
-        
-
-
-        this.originalGetResourcePath = this.app.vault.getResourcePath; // Save the original function
-        // Override the getResourcePath method
-        this.app.vault.getResourcePath = (file: TFile): string => {
-            // If the path contains _externalPrefix, it's an external file
-            // Remove this prefix and anything before it (the vault root path)
-            if (file.path.startsWith(_externalPrefix)) {
-
-                let stripped = file.path.replace(_externalPrefix, "");
-
-                const isTextFile = file.extension === "md" || file.extension === "canvas" || file.extension === "json" || file.extension === "txt";
-                if (!isTextFile)
-                {
-                    // Remove "./" from the start of the path
-                    stripped = this.useVaultAsWorkingDirectory(stripped.replace("./", ""));
-                }
-
-                // Only add the prefix for local files, http/https files should not have it
-                const isLocal = isLocalFile(stripped);
-                const prefix = isLocal ? Platform.resourcePathPrefix : "";
-
-                return prefix + stripped;
-            }
-
-            // For other files, allow the original method to handle them
-            return this.originalGetResourcePath.call(this.app.vault, file);
-        };
+        this.registerEditorExtension(getHideTestPlugin(this))
 
 
         // Intercept getFirstLinkpathDest to handle external links
@@ -416,117 +339,23 @@ export default class PathLinkerPlugin extends Plugin {
         };
 
 
-        this.originalGetEmbedCreater = this.app.embedRegistry.getEmbedCreator;
-
-        if(Platform.isMobile)
-        this.app.embedRegistry.getEmbedCreator = (embedFile: TFile) => {
-            const embedCreator = this.originalGetEmbedCreater.call(this.app.embedRegistry, embedFile);
-
-            if(!embedCreator)
-                return embedCreator;
-
-            // Replace the normal embed creator with a wrapper
-            // This gives the plugin access to the embed object after it's created
-            return (...embedData: any[]): any => {
-
-                const embed = embedCreator(...embedData);
-
-                // PDFs are handled separately since they use pdf.js
-                if (embedFile.extension != "pdf") {
-
-                    // Text files are handled in the cachedRead method and do not need any further processing
-                    if (embedFile.extension == "md" || embedFile.extension == "canvas" || embedFile.extension == "json" || embedFile.extension == "txt") {
-                        return embed;
-                    }
-
-                    // Wait until the display element (img, audio, etc) is added to the embed container
-                    const observer = new MutationObserver(async () => {
-
-                        // Check if the element has been added
-                        if (embed.containerEl.children[0]) {
-    
-                            // Check if the file is a local file
-                            if (embed.containerEl.children[0].src.startsWith("file://")) {
-
-                                // Get file data as base64 string
-                                let filePath = embed.containerEl.children[0].src;
-
-                                // Remove file:// from the start
-                                filePath = filePath.replace(Platform.resourcePathPrefix, "");
-                                
-                                // Remove # and everything after it
-                                filePath = filePath.split("#")[0];
-
-                                filePath = decodeURIComponent(filePath);
-
-                                // Read the file as a base64 string with Capacitor
-                                const fileBase64 = (await Filesystem.readFile({ path: filePath })).data;
-
-                                // Get the data type for the file (image, audio)
-                                const dataType = this.app.viewRegistry.getTypeByExtension(embedFile.extension);
-
-                                // Return the file bytes as a base64 url
-                                embed.containerEl.children[0].src = "data:" + dataType + "/" + embedFile.extension + ";base64," + fileBase64;
-
-                            }
-                      
-                            // Stop observing once the src has been replaced
-                            observer.disconnect();
-                        }
-                    });
-                    observer.observe(embed.containerEl, { childList: true });
-
-                    return embed;
-                }
-
-                // PDFs are handled here
-
-                // Wait until the viewer is added to the embed container
-                this.waitUntilPopulated(embed.viewer, "child", (child) => {
-                    // Wait until the pdfViewer is added to the viewer
-                    this.waitUntilPopulated(child, "pdfViewer", (pdfViewer) => {
-
-                        // Override the open function to handle local files
-                        const originalOpen = pdfViewer.open;
-                        pdfViewer.open = async (openData: OpenPDFData) => {
-
-                            // Check if the file is a local file
-                            const isLocal = isLocalFile(openData.url);
-                            if (isLocal)
-                            {
-                                // Get the file as a base64 string with Capacitor
-                                const fileBase64 = await Filesystem.readFile({ path: openData.url });
-
-                                // Return the file bytes as a base64 url
-                                openData.url = "data:application/pdf;base64," + fileBase64.data;
-                            }
-
-                            // Call the original open function with the modified url
-                            originalOpen.call(pdfViewer, openData);
-                        }
-                    });
-                });
-
-
-                return embed;
-
-            };
-        }
-
-
         // This fixes cases where other plugins try to read the file but the vault path is prepended by Obsidian
         // Mostly for PDF++
         this.originalGetFullPath = (this.app.vault.adapter as any).getFullPath;
 
         if (this.originalGetFullPath !== undefined)
         (this.app.vault.adapter as any).getFullPath = (path: string) => {
-            const fullPath = this.originalGetFullPath.call(this.app.vault.adapter, path);
+            let fullPath = this.originalGetFullPath.call(this.app.vault.adapter, path);
 
             // Check if path contains _externalPrefix
             if (fullPath.toString().includes(_externalPrefix)) {
             // Split and return everything after it
-            return fullPath.toString().split(_externalPrefix)[1];
+                fullPath = fullPath.toString().split(_externalPrefix)[1];
             }
+
+            fullPath = this.useVaultAsWorkingDirectory(fullPath);
+
+            console.log(path + "\n" + fullPath);
 
             return fullPath;
         }
@@ -536,10 +365,7 @@ export default class PathLinkerPlugin extends Plugin {
     onunload() {
         
         // Restore the original methods
-        this.app.vault.cachedRead = this.oldCachedRead;
-        this.app.vault.getResourcePath = this.originalGetResourcePath;
         this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
-        this.app.embedRegistry.getEmbedCreator = this.originalGetEmbedCreater;
 
         if (this.originalGetFullPath !== undefined)
         (this.app.vault.adapter as any).getFullPath = this.originalGetFullPath;
