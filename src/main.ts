@@ -328,10 +328,15 @@ export default class PathLinkerPlugin extends Plugin {
         this.originalGetFirstLinkpathDest = this.app.metadataCache.getFirstLinkpathDest;
         this.app.metadataCache.getFirstLinkpathDest = (linkpath: string, sourcePath: string): TFile | null => {
             if (linkpath.startsWith(externalPrefix) || linkpath.startsWith(externalGroupPrefix)) {
-                // Return a custom file object for external links
-                // This creates a TFile object to a file that doesn't exist so that obisidan will try to read it
-                // This read will later be intercepted so that the correct file is read
-                return this.createFakeFile(linkpath);
+                // Never feed a fake TFile into the global metadata cache.
+                // The fake file (parent: null, path prefixed with _externalPrefix,
+                // empty stat) never resolves to a real vault file, so index-scanning
+                // consumers such as Dataview never reach a fixed point and stay stuck
+                // in "still indexing". Display and opening of these links is handled
+                // entirely by the markdown post processor / editor widget in nonembed.ts,
+                // which does not need this TFile. Returning null lets indexers ignore
+                // the link cleanly.
+                return null;
             }
 
             // Call the original method for internal links
@@ -343,7 +348,16 @@ export default class PathLinkerPlugin extends Plugin {
         // Mostly for PDF++
         this.originalGetFullPath = (this.app.vault.adapter as any).getFullPath;
 
-        if (this.originalGetFullPath !== undefined)
+        // Only override getFullPath on desktop. This override replaces
+        // Obsidian's getFullPath for EVERY file access, not just external links.
+        // On iOS/mobile the vault adapter's base path handling differs, so routing
+        // every path through useVaultAsWorkingDirectory() produces an invalid path
+        // and makes ALL notes fail to open ("could not open ..."). External/group
+        // links do not rely on this override: they are opened via openInDefaultApp()
+        // -> adapter.fs.open(), which resolves the working directory itself. The
+        // override exists mostly for PDF++ on desktop, so guarding it with
+        // !Platform.isMobile keeps that intact while fixing mobile.
+        if (this.originalGetFullPath !== undefined && !Platform.isMobile)
         (this.app.vault.adapter as any).getFullPath = (path: string) => {
             let fullPath = this.originalGetFullPath.call(this.app.vault.adapter, path);
 
@@ -355,8 +369,6 @@ export default class PathLinkerPlugin extends Plugin {
 
             fullPath = this.useVaultAsWorkingDirectory(fullPath);
 
-            console.log(path + "\n" + fullPath);
-
             return fullPath;
         }
     }
@@ -367,7 +379,7 @@ export default class PathLinkerPlugin extends Plugin {
         // Restore the original methods
         this.app.metadataCache.getFirstLinkpathDest = this.originalGetFirstLinkpathDest;
 
-        if (this.originalGetFullPath !== undefined)
+        if (this.originalGetFullPath !== undefined && !Platform.isMobile)
         (this.app.vault.adapter as any).getFullPath = this.originalGetFullPath;
     }
 
